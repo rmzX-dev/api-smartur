@@ -109,7 +109,7 @@ class UserController {
             if (result) {
                 await sendEmail(email, result.token)
             }
-            res.json({ message: `Hemos enviado un codigo al correo: ${email}` })
+            res.json({ message: `Se ha enviado un codigo al correo: ${email}` })
         } catch (error) {
             res.status(500).json({ error: error.message })
         }
@@ -181,7 +181,6 @@ class UserController {
             const result = await UserService.login({ email, password })
             return res.status(200).json(result)
         } catch (error) {
-
             if (
                 error.message === 'Usuario no encontrado' ||
                 error.message === 'Contraseña incorrecta' ||
