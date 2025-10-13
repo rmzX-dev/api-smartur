@@ -11,5 +11,6 @@ router.delete('/users/delete/:id', UserController.deleteUserController)
 
 router.post('/users/forgot-password', UserController.forgotPasswordController)
 router.post('/users/reset-password', UserController.resetPasswordController)
+router.post('/users/login', UserController.loginController)
 
 export default router

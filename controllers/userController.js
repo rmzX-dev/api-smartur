@@ -79,7 +79,7 @@ class UserController {
 
             validateEmail(email)
             validatePassword(password)
-            
+
             const user = await User.createUser({
                 name,
                 email,
@@ -171,6 +171,28 @@ class UserController {
                 return res.status(404).json({ message: error.message })
             }
             res.status(500).json({ message: 'Error interno del servidor' })
+        }
+    }
+
+    static async loginController(req, res) {
+        try {
+            const { email, password } = req.body
+            validateRequiredFields({ email, password })
+            const result = await UserService.login({ email, password })
+            return res.status(200).json(result)
+        } catch (error) {
+
+            if (
+                error.message === 'Usuario no encontrado' ||
+                error.message === 'Contraseña incorrecta' ||
+                error.message.includes('es requerido') // <- aquí
+            ) {
+                return res.status(400).json({ message: error.message })
+            }
+
+            // Otros errores inesperados
+            console.error('Error en loginController:', error)
+            return res.status(500).json({ message: 'Error del servidor' })
         }
     }
 }

@@ -1,8 +1,16 @@
 import pool from '../config/db.js'
 import bcrypt from 'bcrypt'
 import User from '../models/userModel.js'
+import jwt from 'jsonwebtoken'
 
 export class UserService {
+    static async findByEmail(email) {
+        const result = await pool.query(
+            'SELECT * FROM "user" WHERE email = $1',
+            [email]
+        )
+        return result.rows[0] || null
+    }
     static async generateResetToken(email) {
         const user = await User.findByEmail(email)
         if (!user) return null
@@ -41,7 +49,8 @@ export class UserService {
             [user.user_id, token]
         )
 
-        if (tokenResult.rowCount === 0) throw new Error('Código inválido o expirado')
+        if (tokenResult.rowCount === 0)
+            throw new Error('Código inválido o expirado')
 
         const hashed = await bcrypt.hash(newPassword, 10)
         await pool.query(`UPDATE "user" SET password = $1 WHERE user_id = $2`, [
@@ -55,5 +64,31 @@ export class UserService {
         )
 
         return user
+    }
+
+    static async login({ email, password }) {
+        const user = await this.findByEmail(email)
+        if (!user) throw new Error('Usuario no encontrado')
+
+        if (!password) throw new Error('Password es requerido')
+
+        const isMatch = await bcrypt.compare(password, user.password)
+        if (!isMatch) throw new Error('Contraseña incorrecta')
+
+        const token = jwt.sign(
+            { id: user.user_id, email: user.email, role: user.role_name },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        )
+
+        return {
+            token,
+            user: {
+                id: user.user_id,
+                name: user.name,
+                email: user.email,
+                role: user.role_name,
+            },
+        }
     }
 }
