@@ -2,6 +2,7 @@ import pool from '../config/db.js'
 import bcrypt from 'bcrypt'
 import User from '../models/userModel.js'
 import jwt from 'jsonwebtoken'
+import { sendEmailVerification } from '../utils/mailer.js'
 
 export class UserService {
     static async findByEmail(email) {
@@ -26,7 +27,6 @@ export class UserService {
 
         return { user, token }
     }
-
     static async verifyResetCode(email, token) {
         const user = await User.findByEmail(email)
         if (!user) return false
@@ -38,7 +38,6 @@ export class UserService {
         )
         return result.rowCount > 0
     }
-
     static async resetPassword(email, token, newPassword) {
         const user = await User.findByEmail(email)
         if (!user) throw new Error('Usuario no encontrado')
@@ -65,30 +64,108 @@ export class UserService {
 
         return user
     }
+    static async login(email, password) {
+        try {
+            const user = await this.findByEmail(email)
+            if (!user) {
+                return { status: 400, message: 'Usuario no encontrado' }
+            }
 
-    static async login({ email, password }) {
-        const user = await this.findByEmail(email)
-        if (!user) throw new Error('Usuario no encontrado')
+            const isMatch = await bcrypt.compare(password, user.password)
+            if (!isMatch) {
+                return { status: 400, message: 'Contraseña incorrecta' }
+            }
 
-        if (!password) throw new Error('Password es requerido')
+            const verificationCode = String(
+                Math.floor(100000 + Math.random() * 900000)
+            )
+            const expiresAt = new Date(Date.now() + 15 * 60 * 1000)
 
-        const isMatch = await bcrypt.compare(password, user.password)
-        if (!isMatch) throw new Error('Contraseña incorrecta')
+            await pool.query(
+                `INSERT INTO login_tokens (user_id, token, expires_at, used)
+                 VALUES ($1, $2, $3, $4)`,
+                [user.user_id, verificationCode, expiresAt, false]
+            )
 
-        const token = jwt.sign(
-            { id: user.user_id, email: user.email, role: user.role_name },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        )
+            return {
+                status: 200,
+                message: 'Código de verificación generado',
+                data: {
+                    userId: user.user_id,
+                    email: user.email,
+                    verificationCode: verificationCode, 
+                    requiresVerification: true,
+                },
+            }
+        } catch (error) {
+            console.error('Error en login:', error)
+            return { status: 500, message: 'Error del servidor' }
+        }
+    }
 
-        return {
-            token,
-            user: {
-                id: user.user_id,
-                name: user.name,
-                email: user.email,
-                role: user.role_name,
-            },
+    static async verifyTwoStepVerificationCode(email, verificationCode) {
+        try {
+            if (
+                typeof email !== 'string' ||
+                typeof verificationCode !== 'string'
+            ) {
+                return { status: 400, message: 'Parámetros inválidos' }
+            }
+
+            const user = await this.findByEmail(email)
+            if (!user) {
+                return { status: 400, message: 'Usuario no encontrado' }
+            }
+
+            const result = await pool.query(
+                `SELECT * FROM login_tokens 
+                 WHERE user_id = $1 AND token = $2`,
+                [user.user_id, verificationCode]
+            )
+
+            if (result.rows.length === 0) {
+                return { status: 400, message: 'Código inválido' }
+            }
+
+            const tokenRecord = result.rows[0]
+            const now = new Date()
+            const expiresAt = new Date(tokenRecord.expires_at)
+
+            if (now > expiresAt) {
+                return { status: 400, message: 'Código expirado' }
+            }
+
+            await pool.query(
+                `DELETE FROM login_tokens 
+                 WHERE user_id = $1 AND token = $2`,
+                [user.user_id, verificationCode]
+            )
+
+            const jwtToken = jwt.sign(
+                {
+                    id: user.user_id,
+                    email: user.email,
+                    role: user.role_name,
+                },
+                process.env.JWT_SECRET,
+                { expiresIn: '24h' }
+            )
+
+            return {
+                status: 200,
+                message: 'Login exitoso',
+                data: {
+                    token: jwtToken,
+                    user: {
+                        id: user.user_id,
+                        name: user.name,
+                        email: user.email,
+                        role: user.role_name,
+                    },
+                },
+            }
+        } catch (error) {
+            return { status: 500, message: 'Error del servidor' }
         }
     }
 }
