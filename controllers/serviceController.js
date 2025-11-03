@@ -1,7 +1,6 @@
 import { UserService } from '../services/userService.js'
 import { sendEmail, sendEmailVerification } from '../utils/mailer.js'
 import {
-    validateEmail,
     validatePassword,
     validateRequiredFields,
 } from '../validators/userValidators.js'
@@ -67,14 +66,10 @@ class ServicesController {
 
             validateRequiredFields({ email, password })
 
-            // Este endpoint solo hace la primera verificación (email/password)
-            // y genera el código de 2FA
             const result = await UserService.login(email, password)
 
             if (result.status === 200) {
-                // Enviar el código por email
                 await sendEmailVerification(email, result.data.verificationCode)
-
                 return res.status(200).json({
                     message: 'Código de verificación enviado',
                     requiresVerification: true,
@@ -85,7 +80,6 @@ class ServicesController {
 
             return res.status(result.status).json({ message: result.message })
         } catch (error) {
-
             return res.status(500).json({ message: 'Error del servidor' })
         }
     }

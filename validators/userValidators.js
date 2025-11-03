@@ -1,4 +1,3 @@
-// validators/userValidators.js
 export function validateEmail(email) {
     const regexEmail = /\S+@\S+\.\S+/
     if (!regexEmail.test(email)) {

@@ -2,7 +2,6 @@ import pool from '../config/db.js'
 import bcrypt from 'bcrypt'
 import User from '../models/userModel.js'
 import jwt from 'jsonwebtoken'
-import { sendEmailVerification } from '../utils/mailer.js'
 
 export class UserService {
     static async findByEmail(email) {
@@ -12,6 +11,7 @@ export class UserService {
         )
         return result.rows[0] || null
     }
+
     static async generateResetToken(email) {
         const user = await User.findByEmail(email)
         if (!user) return null
@@ -24,9 +24,9 @@ export class UserService {
              VALUES ($1, $2, $3)`,
             [user.user_id, token, expiresAt]
         )
-
         return { user, token }
     }
+
     static async verifyResetCode(email, token) {
         const user = await User.findByEmail(email)
         if (!user) return false
@@ -38,6 +38,7 @@ export class UserService {
         )
         return result.rowCount > 0
     }
+
     static async resetPassword(email, token, newPassword) {
         const user = await User.findByEmail(email)
         if (!user) throw new Error('Usuario no encontrado')
@@ -64,6 +65,7 @@ export class UserService {
 
         return user
     }
+
     static async login(email, password) {
         try {
             const user = await this.findByEmail(email)
@@ -93,7 +95,7 @@ export class UserService {
                 data: {
                     userId: user.user_id,
                     email: user.email,
-                    verificationCode: verificationCode, 
+                    verificationCode: verificationCode,
                     requiresVerification: true,
                 },
             }
@@ -105,13 +107,6 @@ export class UserService {
 
     static async verifyTwoStepVerificationCode(email, verificationCode) {
         try {
-            if (
-                typeof email !== 'string' ||
-                typeof verificationCode !== 'string'
-            ) {
-                return { status: 400, message: 'Parámetros inválidos' }
-            }
-
             const user = await this.findByEmail(email)
             if (!user) {
                 return { status: 400, message: 'Usuario no encontrado' }
@@ -131,13 +126,17 @@ export class UserService {
             const now = new Date()
             const expiresAt = new Date(tokenRecord.expires_at)
 
+            
+            if (tokenRecord.used) {
+                return { status: 400, message: 'Código ya fue usado' }
+            }
+
             if (now > expiresAt) {
                 return { status: 400, message: 'Código expirado' }
             }
 
             await pool.query(
-                `DELETE FROM login_tokens 
-                 WHERE user_id = $1 AND token = $2`,
+                `UPDATE login_tokens SET used = TRUE WHERE user_id = $1 AND token = $2 AND used = FALSE;`,
                 [user.user_id, verificationCode]
             )
 

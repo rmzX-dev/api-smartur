@@ -1,7 +1,5 @@
 import pool from '../config/db.js'
 import bcrypt from 'bcrypt'
-import jwt from 'jsonwebtoken'
-import { resolve } from 'path'
 
 const SALT_ROUNDS = 10
 
@@ -56,15 +54,12 @@ class User {
         if (!existingUser) {
             throw new Error('Usuario no encontrado')
         }
-
         const result = await pool.query(
             `DELETE FROM "user" WHERE user_id = $1 RETURNING user_id, name, email`,
             [user_id]
         )
-
         return result.rows[0]
     }
-
     static async login() {}
 }
 

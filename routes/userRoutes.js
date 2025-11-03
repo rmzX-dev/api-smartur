@@ -7,10 +7,12 @@ const router = express.Router()
 router.get('/users', UserController.findAllController)
 router.get('/users/:id', UserController.findByIdController)
 router.post('/users/register', UserController.createUserController)
-router.post('/users/admin', UserController.createAdminController)
 router.delete('/users/delete/:id', UserController.deleteUserController)
 
-// olvide contraseña
+//Crear administrador
+router.post('/users/admin', UserController.createAdminController)
+
+// Recuperar contraseña
 router.post(
     '/users/forgot-password',
     ServicesController.forgotPasswordController
@@ -21,10 +23,10 @@ router.post(
 )
 router.post('/users/reset-password', ServicesController.resetPasswordController)
 
-// Paso 1: Verificar credenciales y generar código 2FA
+//Login
 router.post('/login', ServicesController.loginController)
 
-// Paso 2: Verificar código 2FA y obtener JWT final
+//2FA y JWT
 router.post(
     '/verify-2fa',
     ServicesController.verifyTwoStepVerificationCodeController
