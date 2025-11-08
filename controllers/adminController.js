@@ -1,24 +1,26 @@
-import User from '../models/userModel.js'
+import Admin from '../models/adminModel.js'
+
 import {
     validateEmail,
     validatePassword,
     validateRequiredFields,
 } from '../validators/userValidators.js'
 
-class UserController {
-    static async findAllUserController(req, res) {
+class AdminController {
+
+    static async findAllAdminController(req, res) {
         try {
-            const users = await User.findAllUser()
+            const users = await Admin.findAllAdmin()
             res.json(users)
         } catch (error) {
             res.status(500).json({ error: error.message })
         }
     }
 
-    static async findUserByIdController(req, res) {
+    static async findByIdAminController(req, res) {
         try {
-            const user = await User.findById(req.params.id)
-            if (!user || user.role_id !== 2) {
+            const user = await User.findByIdAdmin(req.params.id)
+            if (!user || user.role_id !== 1) {
                 return res
                     .status(404)
                     .json({ message: 'Usuario no encontrado' })
@@ -29,13 +31,13 @@ class UserController {
         }
     }
 
-    static async createUserController(req, res) {
+    static async createAdminController(req, res) {
         try {
             const { name, email, password, role_id } = req.body
 
             validateRequiredFields({ name, email, password })
 
-            const existingUser = await User.findUserByEmail(email)
+            const existingUser = await Admin.findAdminByEmail(email)
             if (existingUser) {
                 return res.status(400).json({ message: 'Correo ya registrado' })
             }
@@ -43,7 +45,7 @@ class UserController {
             validateEmail(email)
             validatePassword(password)
 
-            const user = await User.createUser({
+            const user = await Admin.createAdmin({
                 name,
                 email,
                 password,
@@ -66,7 +68,7 @@ class UserController {
 
     static async deleteUserController(req, res) {
         try {
-            const user = await User.deleteUser(req.params.id)
+            const user = await Admin.deleteAdmin(req.params.id)
             res.json({
                 message: 'Usuario eliminado exitosamente',
                 user: {
@@ -84,4 +86,4 @@ class UserController {
     }
 }
 
-export default UserController
+export default AdminController;
