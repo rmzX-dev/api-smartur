@@ -126,7 +126,6 @@ export class UserService {
             const now = new Date()
             const expiresAt = new Date(tokenRecord.expires_at)
 
-            
             if (tokenRecord.used) {
                 return { status: 400, message: 'Código ya fue usado' }
             }
@@ -144,12 +143,13 @@ export class UserService {
                 {
                     id: user.user_id,
                     email: user.email,
-                    role: user.role_name,
+                    role_id: user.role_id,
                 },
                 process.env.JWT_SECRET,
                 { expiresIn: '24h' }
             )
 
+            // Respuesta
             return {
                 status: 200,
                 message: 'Login exitoso',
@@ -159,7 +159,7 @@ export class UserService {
                         id: user.user_id,
                         name: user.name,
                         email: user.email,
-                        role: user.role_name,
+                        role_id: user.role_id,
                     },
                 },
             }

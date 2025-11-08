@@ -18,7 +18,7 @@ class UserController {
     static async findByIdController(req, res) {
         try {
             const user = await User.findById(req.params.id)
-            if (!user) {
+            if (!user || user.role_id !== 2) {
                 return res
                     .status(404)
                     .json({ message: 'Usuario no encontrado' })
@@ -117,7 +117,6 @@ class UserController {
             res.status(500).json({ message: 'Error interno del servidor' })
         }
     }
-
 }
 
 export default UserController

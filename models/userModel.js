@@ -5,8 +5,13 @@ const SALT_ROUNDS = 10
 
 class User {
     static async findAll() {
-        const result = await pool.query(`Select * from "user"`)
-        return result.rows
+        const result = await pool.query(
+            `SELECT user_id, name, email, role_id, registered_at
+     FROM "user"
+     WHERE role_id = $1`,
+            [2]
+        )
+        return result.rows;
     }
 
     static async findById(user_id) {
@@ -25,7 +30,7 @@ class User {
         return result.rows[0] || null
     }
 
-    static async createAdmin(data){
+    static async createAdmin(data) {
         const { name, email, password, role_id = 1 } = data
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
 
@@ -36,7 +41,7 @@ class User {
         )
         return result.rows[0]
     }
-    
+
     static async createUser(data) {
         const { name, email, password, role_id = 2 } = data
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
