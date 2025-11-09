@@ -1,19 +1,13 @@
 import pool from '../config/db.js'
 import bcrypt from 'bcrypt'
-import User from '../models/userModel.js'
 import jwt from 'jsonwebtoken'
+import { findByEmail } from '../validators/userValidators.js'
+
+const SALT_ROUNDS = 10
 
 export class UserService {
-    static async findByEmail(email) {
-        const result = await pool.query(
-            'SELECT * FROM "user" WHERE email = $1',
-            [email]
-        )
-        return result.rows[0] || null
-    }
-
     static async generateResetToken(email) {
-        const user = await User.findByEmail(email)
+        const user = await findByEmail(email)
         if (!user) return null
 
         const token = String(Math.floor(100000 + Math.random() * 900000))
@@ -28,7 +22,7 @@ export class UserService {
     }
 
     static async verifyResetCode(email, token) {
-        const user = await User.findByEmail(email)
+        const user = await findByEmail(email)
         if (!user) return false
 
         const result = await pool.query(
@@ -40,8 +34,11 @@ export class UserService {
     }
 
     static async resetPassword(email, token, newPassword) {
-        const user = await User.findByEmail(email)
-        if (!user) throw new Error('Usuario no encontrado')
+    try {
+        const user = await findByEmail(email)
+        if (!user) {
+            throw new Error('Usuario no encontrado')
+        }
 
         const tokenResult = await pool.query(
             `SELECT * FROM password_reset_tokens
@@ -49,26 +46,31 @@ export class UserService {
             [user.user_id, token]
         )
 
-        if (tokenResult.rowCount === 0)
+        if (tokenResult.rows.length === 0) {
             throw new Error('Código inválido o expirado')
+        }
 
-        const hashed = await bcrypt.hash(newPassword, 10)
-        await pool.query(`UPDATE "user" SET password = $1 WHERE user_id = $2`, [
-            hashed,
-            user.user_id,
-        ])
+        const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
+
+        await pool.query(
+            `UPDATE "user" SET password = $1 WHERE user_id = $2`,
+            [hashedPassword, user.user_id]
+        )
 
         await pool.query(
             `UPDATE password_reset_tokens SET used = TRUE WHERE id = $1`,
             [tokenResult.rows[0].id]
         )
-
         return user
+
+    } catch (error) {
+        throw error // Propagar el error para manejo externo
     }
+}
 
     static async login(email, password) {
         try {
-            const user = await this.findByEmail(email)
+            const user = await findByEmail(email)
             if (!user) {
                 return { status: 400, message: 'Usuario no encontrado' }
             }
@@ -107,7 +109,7 @@ export class UserService {
 
     static async verifyTwoStepVerificationCode(email, verificationCode) {
         try {
-            const user = await this.findByEmail(email)
+            const user = await findByEmail(email)
             if (!user) {
                 return { status: 400, message: 'Usuario no encontrado' }
             }
@@ -149,7 +151,6 @@ export class UserService {
                 { expiresIn: '24h' }
             )
 
-            // Respuesta
             return {
                 status: 200,
                 message: 'Login exitoso',

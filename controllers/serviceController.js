@@ -1,14 +1,19 @@
 import { UserService } from '../services/userService.js'
 import { sendEmail, sendEmailVerification } from '../utils/mailer.js'
-import {
-    validatePassword,
-    validateRequiredFields,
-} from '../validators/userValidators.js'
+import { validatePassword, validateRequiredFields } from '../validators/userValidators.js'
+import { findByEmail } from '../validators/userValidators.js'
 
 class ServicesController {
     static async forgotPasswordController(req, res) {
         try {
             const { email } = req.body
+            const user = await findByEmail(email)
+            if (!user) {
+                return res
+                    .status(404)
+                    .json({ message: 'Usuario no encontrado' })
+            }
+
             const result = await UserService.generateResetToken(email)
 
             if (result) {
@@ -23,6 +28,12 @@ class ServicesController {
     static async verifyResetCodeController(req, res) {
         try {
             const { email, token } = req.body
+            const user = await findByEmail(email)
+            if (!user) {
+                return res
+                    .status(404)
+                    .json({ message: 'Usuario no encontrado' })
+            }
             const valid = await UserService.verifyResetCode(email, token)
 
             if (!valid) {
@@ -40,6 +51,12 @@ class ServicesController {
     static async resetPasswordController(req, res) {
         try {
             const { email, token, newPassword } = req.body
+            const user = await findByEmail(email)
+            if (!user) {
+                return res
+                    .status(404)
+                    .json({ message: 'Usuario no encontrado' })
+            }
 
             validatePassword(newPassword)
             await UserService.resetPassword(email, token, newPassword)

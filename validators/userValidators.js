@@ -1,3 +1,19 @@
+import pool from '../config/db.js'
+
+
+export async function findByEmail(email) {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM "user" WHERE email = $1',
+            [email]
+        )
+        return result.rows[0]
+    } catch (error) {
+        console.error('Error in findByEmail:', error)
+        throw error
+    }
+}
+
 export function validateEmail(email) {
     const regexEmail = /\S+@\S+\.\S+/
     if (!regexEmail.test(email)) {
