@@ -9,9 +9,23 @@ class UserController {
     static async findAllUserController(req, res) {
         try {
             const users = await User.findAllUser()
-            res.json(users)
+            res.json({
+                message: 'Usuarios obtenidos exitosamente',
+                count: users.length,
+                users: users.map(user => ({
+                    id: user.user_id,
+                    name: user.name,
+                    email: user.email,
+                    role_id: user.role_id,
+                    registered_at: user.registered_at
+                }))
+            })
         } catch (error) {
-            res.status(500).json({ error: error.message })
+            console.error('Error fetching users:', error)
+            res.status(500).json({ 
+                message: 'Error interno del servidor',
+                error: error.message 
+            })
         }
     }
 
@@ -19,13 +33,24 @@ class UserController {
         try {
             const user = await User.findById(req.params.id)
             if (!user || user.role_id !== 2) {
-                return res
-                    .status(404)
-                    .json({ message: 'Usuario no encontrado' })
+                return res.status(404).json({ message: 'Usuario no encontrado' })
             }
-            res.json(user)
+            res.json({
+                message: 'Usuario obtenido exitosamente',
+                user: {
+                    id: user.user_id,
+                    name: user.name,
+                    email: user.email,
+                    role_id: user.role_id,
+                    registered_at: user.registered_at
+                }
+            })
         } catch (error) {
-            res.status(500).json({ error: error.message })
+            console.error('Error fetching user:', error)
+            res.status(500).json({ 
+                message: 'Error interno del servidor',
+                error: error.message 
+            })
         }
     }
 
@@ -60,7 +85,11 @@ class UserController {
                 },
             })
         } catch (error) {
-            res.status(500).json({ error: error.message })
+            console.error('Error creating user:', error)
+            res.status(500).json({ 
+                message: 'Error interno del servidor',
+                error: error.message 
+            })
         }
     }
 
@@ -79,7 +108,36 @@ class UserController {
             if (error.message === 'Usuario no encontrado') {
                 return res.status(404).json({ message: error.message })
             }
-            res.status(500).json({ message: 'Error interno del servidor' })
+            console.error('Error deleting user:', error)
+            res.status(500).json({ 
+                message: 'Error interno del servidor',
+                error: error.message 
+            })
+        }
+    }
+
+    static async updateUserController(req, res) {
+        try {
+            const user = await User.updateUser(req.params.id, req.body)
+            if (!user) {
+                return res.status(404).json({ message: 'Usuario no encontrado' })
+            }
+            res.json({
+                message: 'Usuario actualizado exitosamente',
+                user: {
+                    id: user.user_id,
+                    name: user.name,
+                    email: user.email,
+                    role_id: user.role_id,
+                    registered_at: user.registered_at
+                }
+            })
+        } catch (error) {
+            console.error('Error updating user:', error)
+            res.status(500).json({ 
+                message: 'Error interno del servidor',
+                error: error.message 
+            })
         }
     }
 }

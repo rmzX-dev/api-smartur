@@ -1,5 +1,4 @@
 import Admin from '../models/adminModel.js'
-
 import {
     validateEmail,
     validatePassword,
@@ -7,27 +6,51 @@ import {
 } from '../validators/userValidators.js'
 
 class AdminController {
-
     static async findAllAdminController(req, res) {
         try {
-            const users = await Admin.findAllAdmin()
-            res.json(users)
+            const admins = await Admin.findAllAdmin()
+            res.json({
+                message: 'Administradores obtenidos exitosamente',
+                count: admins.length,
+                admins: admins.map(admin => ({
+                    id: admin.user_id,
+                    name: admin.name,
+                    email: admin.email,
+                    role_id: admin.role_id,
+                    registered_at: admin.registered_at
+                }))
+            })
         } catch (error) {
-            res.status(500).json({ error: error.message })
+            console.error('Error fetching admins:', error)
+            res.status(500).json({ 
+                message: 'Error interno del servidor',
+                error: error.message 
+            })
         }
     }
 
-    static async findByIdAminController(req, res) {
+    static async findByIdAdminController(req, res) {
         try {
-            const user = await User.findByIdAdmin(req.params.id)
-            if (!user || user.role_id !== 1) {
-                return res
-                    .status(404)
-                    .json({ message: 'Usuario no encontrado' })
+            const admin = await Admin.findByIdAdmin(req.params.id)
+            if (!admin || admin.role_id !== 1) {
+                return res.status(404).json({ message: 'Administrador no encontrado' })
             }
-            res.json(user)
+            res.json({
+                message: 'Administrador obtenido exitosamente',
+                admin: {
+                    id: admin.user_id,
+                    name: admin.name,
+                    email: admin.email,
+                    role_id: admin.role_id,
+                    registered_at: admin.registered_at
+                }
+            })
         } catch (error) {
-            res.status(500).json({ error: error.message })
+            console.error('Error fetching admin:', error)
+            res.status(500).json({ 
+                message: 'Error interno del servidor',
+                error: error.message 
+            })
         }
     }
 
@@ -45,45 +68,53 @@ class AdminController {
             validateEmail(email)
             validatePassword(password)
 
-            const user = await Admin.createAdmin({
+            const admin = await Admin.createAdmin({
                 name,
                 email,
                 password,
                 role_id,
             })
             res.status(201).json({
-                message: 'Usuario creado exitosamente',
-                user: {
-                    id: user.user_id,
-                    name: user.name,
-                    email: user.email,
-                    role_id: user.role_id,
-                    registered_at: user.registered_at,
+                message: 'Administrador creado exitosamente',
+                admin: {
+                    id: admin.user_id,
+                    name: admin.name,
+                    email: admin.email,
+                    role_id: admin.role_id,
+                    registered_at: admin.registered_at,
                 },
             })
         } catch (error) {
-            res.status(500).json({ error: error.message })
+            console.error('Error creating admin:', error)
+            res.status(500).json({ 
+                message: 'Error interno del servidor',
+                error: error.message 
+            })
         }
     }
 
-    static async deleteUserController(req, res) {
+    static async deleteAdminController(req, res) {
         try {
-            const user = await Admin.deleteAdmin(req.params.id)
+            const admin = await Admin.deleteAdmin(req.params.id)
             res.json({
-                message: 'Usuario eliminado exitosamente',
-                user: {
-                    id: user.user_id,
-                    name: user.name,
-                    email: user.email,
+                message: 'Administrador eliminado exitosamente',
+                admin: {
+                    id: admin.user_id,
+                    name: admin.name,
+                    email: admin.email,
                 },
             })
         } catch (error) {
-            if (error.message === 'Usuario no encontrado') {
+            if (error.message === 'Administrador no encontrado') {
                 return res.status(404).json({ message: error.message })
             }
-            res.status(500).json({ message: 'Error interno del servidor' })
+            console.error('Error deleting admin:', error)
+            res.status(500).json({ 
+                message: 'Error interno del servidor',
+                error: error.message 
+            })
         }
     }
 }
 
-export default AdminController;
+export default AdminController

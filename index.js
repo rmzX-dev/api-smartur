@@ -6,6 +6,7 @@ import swaggerUi from 'swagger-ui-express'
 import userRoutes from './routes/userRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import servicesRoutes from './routes/servicesRoutes.js'
+import companyRoutes from './routes/companyRoutes.js'
 
 dotenv.config()
 
@@ -17,7 +18,7 @@ app.use(express.json())
 app.use('/api', userRoutes)
 app.use('/api', adminRoutes)
 app.use('/api', servicesRoutes)
-
+app.use('/api', companyRoutes)
 
 
 const PORT = process.env.PORT || 3002
