@@ -4,6 +4,7 @@ import {
     validatePassword,
     validateRequiredFields,
 } from '../validators/userValidators.js'
+import Admin from '../models/adminModel.js'
 
 class UserController {
     static async findAllUserController(req, res) {
@@ -12,19 +13,19 @@ class UserController {
             res.json({
                 message: 'Usuarios obtenidos exitosamente',
                 count: users.length,
-                users: users.map(user => ({
+                users: users.map((user) => ({
                     id: user.user_id,
                     name: user.name,
                     email: user.email,
                     role_id: user.role_id,
-                    registered_at: user.registered_at
-                }))
+                    registered_at: user.registered_at,
+                })),
             })
         } catch (error) {
             console.error('Error fetching users:', error)
-            res.status(500).json({ 
+            res.status(500).json({
                 message: 'Error interno del servidor',
-                error: error.message 
+                error: error.message,
             })
         }
     }
@@ -33,7 +34,9 @@ class UserController {
         try {
             const user = await User.findById(req.params.id)
             if (!user || user.role_id !== 2) {
-                return res.status(404).json({ message: 'Usuario no encontrado' })
+                return res
+                    .status(404)
+                    .json({ message: 'Usuario no encontrado' })
             }
             res.json({
                 message: 'Usuario obtenido exitosamente',
@@ -42,14 +45,14 @@ class UserController {
                     name: user.name,
                     email: user.email,
                     role_id: user.role_id,
-                    registered_at: user.registered_at
-                }
+                    registered_at: user.registered_at,
+                },
             })
         } catch (error) {
             console.error('Error fetching user:', error)
-            res.status(500).json({ 
+            res.status(500).json({
                 message: 'Error interno del servidor',
-                error: error.message 
+                error: error.message,
             })
         }
     }
@@ -62,6 +65,11 @@ class UserController {
 
             const existingUser = await User.findUserByEmail(email)
             if (existingUser) {
+                return res.status(400).json({ message: 'Correo ya registrado' })
+            }
+
+            const existingAdmin = await Admin.findAdminByEmail(email)
+            if (existingAdmin) {
                 return res.status(400).json({ message: 'Correo ya registrado' })
             }
 
@@ -86,9 +94,9 @@ class UserController {
             })
         } catch (error) {
             console.error('Error creating user:', error)
-            res.status(500).json({ 
+            res.status(500).json({
                 message: 'Error interno del servidor',
-                error: error.message 
+                error: error.message,
             })
         }
     }
@@ -109,9 +117,9 @@ class UserController {
                 return res.status(404).json({ message: error.message })
             }
             console.error('Error deleting user:', error)
-            res.status(500).json({ 
+            res.status(500).json({
                 message: 'Error interno del servidor',
-                error: error.message 
+                error: error.message,
             })
         }
     }
@@ -120,7 +128,9 @@ class UserController {
         try {
             const user = await User.updateUser(req.params.id, req.body)
             if (!user) {
-                return res.status(404).json({ message: 'Usuario no encontrado' })
+                return res
+                    .status(404)
+                    .json({ message: 'Usuario no encontrado' })
             }
             res.json({
                 message: 'Usuario actualizado exitosamente',
@@ -129,14 +139,14 @@ class UserController {
                     name: user.name,
                     email: user.email,
                     role_id: user.role_id,
-                    registered_at: user.registered_at
-                }
+                    registered_at: user.registered_at,
+                },
             })
         } catch (error) {
             console.error('Error updating user:', error)
-            res.status(500).json({ 
+            res.status(500).json({
                 message: 'Error interno del servidor',
-                error: error.message 
+                error: error.message,
             })
         }
     }

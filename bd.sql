@@ -91,6 +91,7 @@ CREATE TABLE tourist_activities (
   FOREIGN KEY (id_company) REFERENCES company(id_company)
 );
 
+
 CREATE TABLE tourism_employment (
   id_employment SERIAL PRIMARY KEY,
   id_company INT,
@@ -110,6 +111,84 @@ CREATE TABLE tourism_inputs (
   consumption NUMERIC(10,2),
   carbon_footprint NUMERIC(10,2),
   FOREIGN KEY (id_company) REFERENCES company(id_company)
+);
+
+-- EVALUATION TEMPLATES
+CREATE TABLE evaluation_template (
+    id_template SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    version VARCHAR(20),
+    service_type VARCHAR(50), -- 'restaurant', 'hotel', 'tour'
+    active BOOLEAN DEFAULT true,
+    creation_date TIMESTAMP
+);
+
+CREATE TABLE evaluation_criterion (
+    id_criterion SERIAL PRIMARY KEY,
+    id_template INTEGER REFERENCES evaluation_template(id_template),
+    name VARCHAR(100), -- 'Infrastructure', 'Accessibility', etc.
+    description TEXT,
+    weight DECIMAL(3,2), -- 0.00 - 1.00
+    order_index INTEGER,
+    active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE evaluation_subcriterion (
+    id_subcriterion SERIAL PRIMARY KEY,
+    id_criterion INTEGER REFERENCES evaluation_criterion(id_criterion),
+    description TEXT, -- Description of the score level
+    score INTEGER, -- 0, 1, 2, 3, 4
+    order_index INTEGER,
+    required_evidences TEXT[] -- Types of required evidence
+);
+
+CREATE TABLE tourist_service (
+    id_service SERIAL PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    description TEXT,
+    id_company INT,
+    id_location INT,
+    service_type VARCHAR(50),
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_company) REFERENCES company(id_company),
+    FOREIGN KEY (id_location) REFERENCES location(id_location)
+);
+
+CREATE TABLE service_evaluation (
+    id_evaluation SERIAL PRIMARY KEY,
+    id_service INTEGER REFERENCES tourist_service(id_service),
+    id_template INTEGER REFERENCES evaluation_template(id_template),
+    evaluation_date DATE,
+    evaluator_id INTEGER REFERENCES "user"(user_id),
+    status VARCHAR(20), -- 'in_progress', 'completed', 'reviewed'
+    total_score DECIMAL(4,2),
+    evaluation_time INTEGER, -- minutes
+    general_observations TEXT,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE evaluation_detail (
+    id_detail SERIAL PRIMARY KEY,
+    id_evaluation INTEGER REFERENCES service_evaluation(id_evaluation),
+    id_criterion INTEGER REFERENCES evaluation_criterion(id_criterion),
+    assigned_score INTEGER, -- 0-4
+    id_selected_subcriterion INTEGER REFERENCES evaluation_subcriterion(id_subcriterion),
+    observations TEXT,
+    attached_evidences JSON, -- URLs of photos, documents, etc.
+    created_at TIMESTAMP
+);
+
+CREATE TABLE service_certification (
+    id_certification SERIAL PRIMARY KEY,
+    id_service INTEGER REFERENCES tourist_service(id_service),
+    certification_type VARCHAR(100), -- 'H_Distinction', 'Michelin', 'Sustainable'
+    obtainment_date DATE,
+    expiration_date DATE,
+    issuing_organization VARCHAR(100),
+    evidence_url VARCHAR(255),
+    status VARCHAR(20) -- 'active', 'expired', 'under_review'
 );
 
 CREATE TABLE login_tokens (

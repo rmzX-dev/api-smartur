@@ -26,22 +26,16 @@ class company {
     }
 
     static async deleteCompany(id_company) {
-        console.log('ID recibido para eliminar:', id_company)
-
         const existingCompany = await this.findCompanyById(id_company)
-        console.log('Compañía encontrada:', existingCompany)
 
         if (!existingCompany) {
-            console.log('Compañía NO encontrada, lanzando error')
             throw new Error('Compania no encontrada')
         }
 
-        console.log('Procediendo a eliminar compañía...')
         const result = await pool.query(
             'DELETE FROM company WHERE id_company = $1 RETURNING *',
             [id_company]
         )
-        console.log('Resultado de eliminación:', result.rows[0])
 
         return result.rows[0]
     }

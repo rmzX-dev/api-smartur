@@ -31,7 +31,7 @@ class AdminController {
 
     static async findByIdAdminController(req, res) {
         try {
-            const admin = await Admin.findByIdAdmin(req.params.id)
+            const admin = await Admin.findAdminById(req.params.id)
             if (!admin || admin.role_id !== 1) {
                 return res.status(404).json({ message: 'Administrador no encontrado' })
             }

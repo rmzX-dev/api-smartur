@@ -5,7 +5,10 @@ const router = express.Router()
 
 router.get('/company', CompanyController.findAllCompanyController)
 router.get('/company/:id_company', CompanyController.findCompanyByIdController)
-router.post('/company/create', CompanyController.createCompanyController)
-router.delete('/company/:id_company', CompanyController.deleteCompanyController)
+router.post('/company/register', CompanyController.createCompanyController)
+router.delete(
+    '/company/delete/:id_company',
+    CompanyController.deleteCompanyController
+)
 
 export default router
