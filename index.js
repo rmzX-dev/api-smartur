@@ -8,6 +8,7 @@ import servicesRoutes from './routes/servicesRoutes.js'
 import companyRoutes from './routes/companyRoutes.js'
 import touristActivitiesRoutes from './routes/touristActivitiesRoutes.js'
 import templateRoutes from './routes/evaluationTemplatesRoutes.js'
+import travelerProfileRoutes from './routes/travelerProfileRoutes.js'
 dotenv.config()
 
 const app = express()
@@ -21,8 +22,9 @@ app.use('/api', servicesRoutes)
 app.use('/api', companyRoutes)
 app.use('/api', touristActivitiesRoutes)
 app.use('/api', templateRoutes)
+app.use('/api', travelerProfileRoutes)
 
-const PORT = process.env.PORT || 3002
+const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`)
 })
