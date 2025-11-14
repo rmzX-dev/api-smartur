@@ -1,6 +1,6 @@
 import pool from '../config/db.js'
 
-class company {
+class Company {
     static async findAllCompany() {
         const result = await pool.query(`SELECT * from company`)
         return result.rows
@@ -35,4 +35,4 @@ class company {
     }
 }
 
-export default company
+export default Company
