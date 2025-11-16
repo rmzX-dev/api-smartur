@@ -11,6 +11,7 @@ import templateRoutes from './routes/evaluationTemplatesRoutes.js'
 import travelerProfileRoutes from './routes/travelerProfileRoutes.js'
 import locationRoutes from './routes/locationRoutes.js'
 import criterionRoutes from './routes/criterionRoutes.js'
+import touristServicesRoutes from './routes/touristServicesRoutes.js'
 dotenv.config()
 
 const app = express()
@@ -27,6 +28,7 @@ app.use('/api', templateRoutes)
 app.use('/api', travelerProfileRoutes)
 app.use('/api', locationRoutes)
 app.use('/api', criterionRoutes)
+app.use('/api', touristServicesRoutes)
 
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {

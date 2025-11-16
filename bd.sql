@@ -133,16 +133,6 @@ CREATE TABLE evaluation_criterion (
     active BOOLEAN DEFAULT true
 );
 
-/*
-{
-  "id_template": 1,
-  "name": "Infrastructure",
-  "description": "Infrastructure",
-  "weight": 0.50,
-  "order_index": 1,
-  "active": true
-}
-*/
 
 CREATE TABLE evaluation_subcriterion (
     id_subcriterion SERIAL PRIMARY KEY,
@@ -165,6 +155,7 @@ CREATE TABLE tourist_service (
     FOREIGN KEY (id_company) REFERENCES company(id_company),
     FOREIGN KEY (id_location) REFERENCES location(id_location)
 );
+
 
 CREATE TABLE service_evaluation (
     id_evaluation SERIAL PRIMARY KEY,
