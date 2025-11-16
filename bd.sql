@@ -133,6 +133,17 @@ CREATE TABLE evaluation_criterion (
     active BOOLEAN DEFAULT true
 );
 
+/*
+{
+  "id_template": 1,
+  "name": "Infrastructure",
+  "description": "Infrastructure",
+  "weight": 0.50,
+  "order_index": 1,
+  "active": true
+}
+*/
+
 CREATE TABLE evaluation_subcriterion (
     id_subcriterion SERIAL PRIMARY KEY,
     id_criterion INTEGER REFERENCES evaluation_criterion(id_criterion),
