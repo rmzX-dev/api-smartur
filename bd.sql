@@ -133,7 +133,6 @@ CREATE TABLE evaluation_criterion (
     active BOOLEAN DEFAULT true
 );
 
-
 CREATE TABLE evaluation_subcriterion (
     id_subcriterion SERIAL PRIMARY KEY,
     id_criterion INTEGER REFERENCES evaluation_criterion(id_criterion),

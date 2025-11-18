@@ -13,6 +13,7 @@ import locationRoutes from './routes/locationRoutes.js'
 import criterionRoutes from './routes/criterionRoutes.js'
 import touristServicesRoutes from './routes/touristServicesRoutes.js'
 import ServiceEvaluationRouter from './routes/ServiceEvaluationRoutes.js'
+import evaluationDetailRouter from './routes/evaluationDetailRoutes.js'
 dotenv.config()
 
 const app = express()
@@ -31,6 +32,7 @@ app.use('/api', locationRoutes)
 app.use('/api', criterionRoutes)
 app.use('/api', touristServicesRoutes)
 app.use('/api', ServiceEvaluationRouter)
+app.use('/api', evaluationDetailRouter)
 
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
