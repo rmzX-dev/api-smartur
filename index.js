@@ -18,6 +18,7 @@ import serviceCertificationRouter from './routes/serviceCertificationRoutes.js'
 import pointOfInterestRouter from './routes/pointOfInterestRoutes.js'
 import tourismExpenditureRouter from './routes/tourismExpenditureRoutes.js'
 import TourismEnploymentRouter from './routes/tourismEmploymentRoutes.js'
+import TourismInputRouter from './routes/tourismInputsRoutes.js'
 dotenv.config()
 
 const app = express()
@@ -41,6 +42,7 @@ app.use('/api', serviceCertificationRouter)
 app.use('/api', pointOfInterestRouter)
 app.use('/api', tourismExpenditureRouter)
 app.use('/api', TourismEnploymentRouter)
+app.use('/api', TourismInputRouter)
 
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
