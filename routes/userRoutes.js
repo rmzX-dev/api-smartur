@@ -1,7 +1,7 @@
-import express from 'express'
-import UserController from '../controllers/userController.js'
+import express from 'express';
+import UserController from '../controllers/userController.js';
 
-const router = express.Router()
+const router = express.Router();
 
 /**
  * @swagger
@@ -32,7 +32,7 @@ const router = express.Router()
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/users', UserController.findAllUserController)
+router.get('/users', UserController.findAllUserController);
 
 /**
  * @swagger
@@ -64,7 +64,7 @@ router.get('/users', UserController.findAllUserController)
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/users/:id', UserController.findUserByIdController)
+router.get('/users/:id', UserController.findUserByIdController);
 
 /**
  * @swagger
@@ -95,7 +95,7 @@ router.get('/users/:id', UserController.findUserByIdController)
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/users/register', UserController.createUserController)
+router.post('/users/', UserController.createUserController);
 
 /**
  * @swagger
@@ -134,7 +134,7 @@ router.post('/users/register', UserController.createUserController)
  *       500:
  *         description: Error interno del servidor
  */
-router.delete('/users/delete/:id', UserController.deleteUserController)
+router.delete('/users/:id', UserController.deleteUserController);
 
-
-export default router
+router.put('/users/:id', UserController.updateUserController);
+export default router;
