@@ -28,7 +28,7 @@ const router = express.Router()
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/admin', AdminController.findAllAdminController)
+router.get('/admin', AdminController.getAll)
 
 /**
  * @swagger
@@ -60,7 +60,7 @@ router.get('/admin', AdminController.findAllAdminController)
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/admin/:id', AdminController.findByIdAdminController)
+router.get('/admin/:id', AdminController.getById)
 
 /**
  * @swagger
@@ -91,7 +91,7 @@ router.get('/admin/:id', AdminController.findByIdAdminController)
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/admin/register', AdminController.createAdminController)
+router.post('/admin', AdminController.create)
 
 /**
  * @swagger
@@ -130,6 +130,6 @@ router.post('/admin/register', AdminController.createAdminController)
  *       500:
  *         description: Error interno del servidor
  */
-router.delete('/admin/delete/:id', AdminController.deleteAdminController)
+router.delete('/admin/:id', AdminController.delete)
 
 export default router

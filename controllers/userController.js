@@ -4,57 +4,26 @@ import {
     validatePassword,
     validateRequiredFields,
 } from '../validators/userValidators.js';
-import Admin from '../models/adminModel.js';
 
 class UserController {
-    static async findAllUserController(req, res) {
+    static async getAll(req, res) {
         try {
-            // Obtener parámetros de query (con valores por defecto)
             const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 10;
-            const search = req.query.search || ''; // ✅ NUEVO
-            const order = req.query.order || 'desc'; // ✅ NUEVO
+            const limit = Math.min(parseInt(req.query.limit) || 50, 100);
 
-            // Validar límites
-            if (limit > 100) {
-                return res.status(400).json({
-                    message: 'El límite máximo es 100 registros por página',
-                });
-            }
-
-            if (page < 1 || limit < 1) {
-                return res.status(400).json({
-                    message: 'Page y limit deben ser mayores a 0',
-                });
-            }
-
-            // Validar orden
-            if (order !== 'asc' && order !== 'desc') {
-                return res.status(400).json({
-                    message: 'El parámetro order debe ser "asc" o "desc"',
-                });
-            }
-
-            const result = await User.findAllUser(page, limit, search, order); // ✅ PASAR NUEVOS PARÁMETROS
+            const users = await User.findAll(page, limit);
 
             res.json({
                 message: 'Usuarios obtenidos exitosamente',
-                pagination: {
-                    currentPage: result.page,
-                    totalPages: result.totalPages,
-                    limit: result.limit,
-                    totalUsers: result.total,
-                },
-                users: result.users.map((user) => ({
+                count: users.length,
+                users: users.map((user) => ({
                     id: user.user_id,
                     name: user.name,
                     email: user.email,
                     role_id: user.role_id,
-                    role_name: user.role_name,
                     is_active: user.is_active,
                     created_at: user.created_at,
                     updated_at: user.updated_at,
-                    deleted_at: user.deleted_at,
                 })),
             });
         } catch (error) {
@@ -66,13 +35,14 @@ class UserController {
         }
     }
 
-    // Obtener usuario por ID
-    static async findUserByIdController(req, res) {
+    static async getById(req, res) {
         try {
             const user = await User.findById(req.params.id);
-            if (!user || user.role_id !== 2) {
+
+            if (!user) {
                 return res.status(404).json({ message: 'Usuario no encontrado' });
             }
+
             res.json({
                 message: 'Usuario obtenido exitosamente',
                 user: {
@@ -80,7 +50,6 @@ class UserController {
                     name: user.name,
                     email: user.email,
                     role_id: user.role_id,
-                    role_name: user.role_name,
                     is_active: user.is_active,
                     created_at: user.created_at,
                     updated_at: user.updated_at,
@@ -95,32 +64,16 @@ class UserController {
         }
     }
 
-    // Crear nuevo usuario
-    static async createUserController(req, res) {
+    static async create(req, res) {
         try {
-            const { name, email, password, role_id } = req.body;
+            const { name, email, password } = req.body;
 
             validateRequiredFields({ name, email, password });
-
-            const existingUser = await User.findUserByEmail(email);
-            if (existingUser) {
-                return res.status(400).json({ message: 'Correo ya registrado' });
-            }
-
-            const existingAdmin = await Admin.findAdminByEmail(email);
-            if (existingAdmin) {
-                return res.status(400).json({ message: 'Correo ya registrado' });
-            }
-
             validateEmail(email);
             validatePassword(password);
 
-            const user = await User.createUser({
-                name,
-                email,
-                password,
-                role_id,
-            });
+            const user = await User.create(req.body);
+
             res.status(201).json({
                 message: 'Usuario creado exitosamente',
                 user: {
@@ -128,6 +81,7 @@ class UserController {
                     name: user.name,
                     email: user.email,
                     role_id: user.role_id,
+                    is_active: user.is_active,
                     created_at: user.created_at,
                 },
             });
@@ -140,13 +94,14 @@ class UserController {
         }
     }
 
-    // Actualizar usuario
-    static async updateUserController(req, res) {
+    static async update(req, res) {
         try {
-            const user = await User.updateUser(req.params.id, req.body);
+            const user = await User.update(req.params.id, req.body);
+
             if (!user) {
                 return res.status(404).json({ message: 'Usuario no encontrado' });
             }
+
             res.json({
                 message: 'Usuario actualizado exitosamente',
                 user: {
@@ -154,6 +109,7 @@ class UserController {
                     name: user.name,
                     email: user.email,
                     role_id: user.role_id,
+                    is_active: user.is_active,
                     updated_at: user.updated_at,
                 },
             });
@@ -166,10 +122,14 @@ class UserController {
         }
     }
 
-    // Borrado lógico (soft delete)
-    static async deleteUserController(req, res) {
+    static async delete(req, res) {
         try {
-            const user = await User.deleteUser(req.params.id);
+            const user = await User.delete(req.params.id);
+
+            if (!user) {
+                return res.status(404).json({ message: 'Usuario no encontrado' });
+            }
+
             res.json({
                 message: 'Usuario eliminado exitosamente',
                 user: {
@@ -180,10 +140,34 @@ class UserController {
                 },
             });
         } catch (error) {
-            if (error.message === 'Usuario no encontrado') {
-                return res.status(404).json({ message: error.message });
-            }
             console.error('Error deleting user:', error);
+            res.status(500).json({
+                message: 'Error interno del servidor',
+                error: error.message,
+            });
+        }
+    }
+
+    static async toggleActive(req, res) {
+        try {
+            const user = await User.toggleActive(req.params.id);
+
+            if (!user) {
+                return res.status(404).json({ message: 'Usuario no encontrado' });
+            }
+
+            res.json({
+                message: `Usuario ${user.is_active ? 'activado' : 'desactivado'} exitosamente`,
+                user: {
+                    id: user.user_id,
+                    name: user.name,
+                    email: user.email,
+                    is_active: user.is_active,
+                    updated_at: user.updated_at,
+                },
+            });
+        } catch (error) {
+            console.error('Error toggling user status:', error);
             res.status(500).json({
                 message: 'Error interno del servidor',
                 error: error.message,

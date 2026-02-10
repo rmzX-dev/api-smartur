@@ -1,66 +1,93 @@
-import pool from '../config/db.js'
-import bcrypt from 'bcrypt'
+import pool from '../config/db.js';
+import bcrypt from 'bcrypt';
+import redisClient from '../config/redis.js';
 
-const SALT_ROUNDS = 10
+const SALT_ROUNDS = 10;
 
 class Admin {
-    static async findAllAdmin() {
+    static async findAll(page = 1, limit = 100) {
+        const offset = (page - 1) * limit;
+
+        const cacheKey = `admins:page:${page}:limit:${limit}`;
+
+        const cachedAdmins = await redisClient.get(cacheKey);
+        if (cachedAdmins) {
+            return JSON.parse(cachedAdmins);
+        }
+
         const result = await pool.query(
-            `SELECT user_id, name, email, role_id, registered_at
-     FROM "user"
-     WHERE role_id = 1`
-        )
-        return result.rows
+            `SELECT * FROM "user"
+       WHERE role_id = 1
+       ORDER BY created_at DESC
+       LIMIT $1 OFFSET $2`,
+            [limit, offset]
+        );
+
+        await redisClient.set(cacheKey, JSON.stringify(result.rows), {
+            EX: 60,
+        });
+
+        return result.rows;
     }
 
-    static async findAdminById(user_id) {
+    static async findById(user_id) {
         const result = await pool.query(
-            `SELECT * FROM "user" WHERE user_id = $1`,
+            `SELECT * FROM "user" 
+         WHERE user_id = $1 AND role_id = 1`,
             [user_id]
-        )
-        return result.rows[0]
+        );
+        return result.rows[0] || null;
     }
 
-    static async findAdminByName(name) {
-        const result = await pool.query(
-            `SELECT * FROM "user" WHERE name = $1 and role_id = 1`,
-            [name]
-        )
-        return result.rows[0] || null
-    }
-
-    static async findAdminByEmail(email) {
-        const result = await pool.query(
-            'SELECT * FROM "user" WHERE email = $1 and role_id = 1',
-            [email]
-        )
-        return result.rows[0] || null
-    }
-
-    static async createAdmin(data) {
-        const { name, email, password, role_id = 1 } = data
-        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
+    static async create(data) {
+        const { name, email, password, role_id = 1 } = data;
+        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
         const result = await pool.query(
             `INSERT INTO "user" (name, email, password, role_id) 
-            VALUES ($1, $2, $3, $4) RETURNING user_id, name, email, role_id, registered_at`,
-            [name, email, hashedPassword, role_id || 1]
-        )
-        return result.rows[0]
+             VALUES ($1, $2, $3, $4) 
+             RETURNING *`,
+            [name, email, hashedPassword, role_id]
+        );
+
+        return result.rows[0];
     }
 
-    static async deleteAdmin(user_id) {
-        const existingUser = await this.findAdminById(user_id)
-        
-        if (!existingUser) {
-            throw new Error('Usuario no encontrado')
-        }
+    static async update(user_id, data) {
+        const { name, email } = data;
+
         const result = await pool.query(
-            `DELETE FROM "user" WHERE user_id = $1 RETURNING user_id, name, email`,
+            `UPDATE "user" 
+             SET name = COALESCE($1, name), email = COALESCE($2, email)
+             WHERE user_id = $3
+             RETURNING *`,
+            [name, email, user_id]
+        );
+
+        return result.rows[0] || null;
+    }
+
+    static async delete(user_id) {
+        const result = await pool.query(
+            `UPDATE "user" 
+         SET is_active = FALSE
+         WHERE user_id = $1
+         RETURNING *`,
             [user_id]
-        )
-        return result.rows[0]
+        );
+        return result.rows[0] || null;
+    }
+
+    static async toggleActive(user_id) {
+        const result = await pool.query(
+            `UPDATE "user" 
+         SET is_active = NOT is_active
+         WHERE user_id = $1 and role_id = 1
+         RETURNING *`,
+            [user_id]
+        );
+        return result.rows[0] || null;
     }
 }
 
-export default Admin
+export default Admin;

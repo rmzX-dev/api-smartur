@@ -32,7 +32,7 @@ const router = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/users', UserController.findAllUserController);
+router.get('/users', UserController.getAll);
 
 /**
  * @swagger
@@ -64,7 +64,7 @@ router.get('/users', UserController.findAllUserController);
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/users/:id', UserController.findUserByIdController);
+router.get('/users/:id', UserController.getById);
 
 /**
  * @swagger
@@ -95,7 +95,7 @@ router.get('/users/:id', UserController.findUserByIdController);
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/users/', UserController.createUserController);
+router.post('/users/', UserController.create);
 
 /**
  * @swagger
@@ -134,7 +134,9 @@ router.post('/users/', UserController.createUserController);
  *       500:
  *         description: Error interno del servidor
  */
-router.delete('/users/:id', UserController.deleteUserController);
+router.delete('/users/:id', UserController.delete);
 
-router.put('/users/:id', UserController.updateUserController);
+router.put('/users/:id', UserController.update);
+
+router.patch('/users/:id/toggle', UserController.toggleActive);
 export default router;

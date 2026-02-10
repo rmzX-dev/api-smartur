@@ -1,40 +1,48 @@
-import Admin from '../models/adminModel.js'
+import Admin from '../models/adminModel.js';
 import {
     validateEmail,
     validatePassword,
     validateRequiredFields,
-} from '../validators/userValidators.js'
+} from '../validators/userValidators.js';
 
 class AdminController {
-    static async findAllAdminController(req, res) {
+    static async getAll(req, res) {
         try {
-            const admins = await Admin.findAllAdmin()
+            const page = parseInt(req.query.page) || 1;
+            const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+
+            const admins = await Admin.findAll(page, limit);
+
             res.json({
-                message: 'Administradores obtenidos exitosamente',
+                message: 'Administradoress obtenidos exitosamente',
                 count: admins.length,
-                admins: admins.map(admin => ({
-                    id: admin.user_id,
+                admins: admins.map((admin) => ({
+                    id: admin.admin_id,
                     name: admin.name,
                     email: admin.email,
                     role_id: admin.role_id,
-                    registered_at: admin.registered_at
-                }))
-            })
+                    is_active: admin.is_active,
+                    created_at: admin.created_at,
+                    updated_at: admin.updated_at,
+                })),
+            });
         } catch (error) {
-            console.error('Error fetching admins:', error)
-            res.status(500).json({ 
+            console.error('Error fetching admins:', error);
+            res.status(500).json({
                 message: 'Error interno del servidor',
-                error: error.message 
-            })
+                error: error.message,
+            });
         }
     }
 
-    static async findByIdAdminController(req, res) {
+    static async getById(req, res) {
         try {
-            const admin = await Admin.findAdminById(req.params.id)
-            if (!admin || admin.role_id !== 1) {
-                return res.status(404).json({ message: 'Administrador no encontrado' })
+            const admin = await Admin.findById(req.params.id);
+
+            if (!admin) {
+                return res.status(404).json({ message: 'Administrador no encontrado' });
             }
+
             res.json({
                 message: 'Administrador obtenido exitosamente',
                 admin: {
@@ -42,38 +50,30 @@ class AdminController {
                     name: admin.name,
                     email: admin.email,
                     role_id: admin.role_id,
-                    registered_at: admin.registered_at
-                }
-            })
+                    is_active: admin.is_active,
+                    created_at: admin.created_at,
+                    updated_at: admin.updated_at,
+                },
+            });
         } catch (error) {
-            console.error('Error fetching admin:', error)
-            res.status(500).json({ 
+            console.error('Error fetching admin:', error);
+            res.status(500).json({
                 message: 'Error interno del servidor',
-                error: error.message 
-            })
+                error: error.message,
+            });
         }
     }
 
-    static async createAdminController(req, res) {
+    static async create(req, res) {
         try {
-            const { name, email, password, role_id } = req.body
+            const { name, email, password } = req.body;
 
-            validateRequiredFields({ name, email, password })
+            validateRequiredFields({ name, email, password });
+            validateEmail(email);
+            validatePassword(password);
 
-            const existingUser = await Admin.findAdminByEmail(email)
-            if (existingUser) {
-                return res.status(400).json({ message: 'Correo ya registrado' })
-            }
+            const admin = await Admin.create(req.body);
 
-            validateEmail(email)
-            validatePassword(password)
-
-            const admin = await Admin.createAdmin({
-                name,
-                email,
-                password,
-                role_id,
-            })
             res.status(201).json({
                 message: 'Administrador creado exitosamente',
                 admin: {
@@ -81,40 +81,99 @@ class AdminController {
                     name: admin.name,
                     email: admin.email,
                     role_id: admin.role_id,
-                    registered_at: admin.registered_at,
+                    is_active: admin.is_active,
+                    created_at: admin.created_at,
                 },
-            })
+            });
         } catch (error) {
-            console.error('Error creating admin:', error)
-            res.status(500).json({ 
+            console.error('Error creating admin:', error);
+            res.status(500).json({
                 message: 'Error interno del servidor',
-                error: error.message 
-            })
+                error: error.message,
+            });
         }
     }
 
-    static async deleteAdminController(req, res) {
+    static async update(req, res) {
         try {
-            const admin = await Admin.deleteAdmin(req.params.id)
+            const admin = await Admin.update(req.params.id, req.body);
+
+            if (!admin) {
+                return res.status(404).json({ message: 'Administrador no encontrado' });
+            }
+
+            res.json({
+                message: 'Administrador actualizado exitosamente',
+                admin: {
+                    id: admin.user_id,
+                    name: admin.name,
+                    email: admin.email,
+                    role_id: admin.role_id,
+                    is_active: admin.is_active,
+                    updated_at: admin.updated_at,
+                },
+            });
+        } catch (error) {
+            console.error('Error updating admin:', error);
+            res.status(500).json({
+                message: 'Error interno del servidor',
+                error: error.message,
+            });
+        }
+    }
+
+    static async delete(req, res) {
+        try {
+            const admin = await Admin.delete(req.params.id);
+
+            if (!admin) {
+                return res.status(404).json({ message: 'Administrador no encontrado' });
+            }
+
             res.json({
                 message: 'Administrador eliminado exitosamente',
                 admin: {
                     id: admin.user_id,
                     name: admin.name,
                     email: admin.email,
+                    deleted_at: admin.deleted_at,
                 },
-            })
+            });
         } catch (error) {
-            if (error.message === 'Administrador no encontrado') {
-                return res.status(404).json({ message: error.message })
-            }
-            console.error('Error deleting admin:', error)
-            res.status(500).json({ 
+            console.error('Error deleting admin:', error);
+            res.status(500).json({
                 message: 'Error interno del servidor',
-                error: error.message 
-            })
+                error: error.message,
+            });
+        }
+    }
+
+    static async toggleActive(req, res) {
+        try {
+            const admin = await Admin.toggleActive(req.params.id);
+
+            if (!admin) {
+                return res.status(404).json({ message: 'Administrador no encontrado' });
+            }
+
+            res.json({
+                message: `Administrador ${user.is_active ? 'activado' : 'desactivado'} exitosamente`,
+                admin: {
+                    id: admin.admin_id,
+                    name: admin.name,
+                    email: admin.email,
+                    is_active: admin.is_active,
+                    updated_at: admin.updated_at,
+                },
+            });
+        } catch (error) {
+            console.error('Error toggling admin status:', error);
+            res.status(500).json({
+                message: 'Error interno del servidor',
+                error: error.message,
+            });
         }
     }
 }
 
-export default AdminController
+export default AdminController;
