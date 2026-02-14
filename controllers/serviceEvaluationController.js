@@ -1,5 +1,4 @@
-import ServiceEvaluation from "../models/ServiceEvaluationModel.js"
-
+import ServiceEvaluation from '../models/serviceEvaluationModel.js';
 class ServiceEvaluationController {
     static async findAllServiceEvaluationController(req, res) {
         try {

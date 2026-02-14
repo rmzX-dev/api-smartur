@@ -13,7 +13,7 @@ import travelerProfileRoutes from './routes/travelerProfileRoutes.js';
 import locationRoutes from './routes/locationRoutes.js';
 import criterionRoutes from './routes/criterionRoutes.js';
 import touristServicesRoutes from './routes/touristServicesRoutes.js';
-import ServiceEvaluationRouter from './routes/ServiceEvaluationRoutes.js';
+import serviceEvaluationRouter from './routes/serviceEvaluationRoutes.js';
 import evaluationDetailRouter from './routes/evaluationDetailRoutes.js';
 import serviceCertificationRouter from './routes/serviceCertificationRoutes.js';
 import pointOfInterestRouter from './routes/pointOfInterestRoutes.js';
@@ -25,7 +25,6 @@ import { connectRedis } from './config/redis.js';
 dotenv.config();
 
 const app = express();
-
 
 app.use(cors());
 app.use(express.json());
@@ -43,7 +42,7 @@ app.use('/api', travelerProfileRoutes);
 app.use('/api', locationRoutes);
 app.use('/api', criterionRoutes);
 app.use('/api', touristServicesRoutes);
-app.use('/api', ServiceEvaluationRouter);
+app.use('/api', serviceEvaluationRouter);
 app.use('/api', evaluationDetailRouter);
 app.use('/api', serviceCertificationRouter);
 app.use('/api', pointOfInterestRouter);

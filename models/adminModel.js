@@ -5,35 +5,52 @@ import redisClient from '../config/redis.js';
 const SALT_ROUNDS = 10;
 
 class Admin {
-    static async findAll(page = 1, limit = 100) {
+    static async findAll(page = 1, limit = 50) {
         const offset = (page - 1) * limit;
 
         const cacheKey = `admins:page:${page}:limit:${limit}`;
 
-        const cachedAdmins = await redisClient.get(cacheKey);
-        if (cachedAdmins) {
-            return JSON.parse(cachedAdmins);
+        const cachedData = await redisClient.get(cacheKey);
+        if (cachedData) {
+            return JSON.parse(cachedData);
         }
 
-        const result = await pool.query(
-            `SELECT * FROM "user"
-       WHERE role_id = 1
-       ORDER BY created_at DESC
-       LIMIT $1 OFFSET $2`,
+        const dataQuery = await pool.query(
+            `SELECT *
+         FROM "user"
+         ORDER BY created_at DESC
+         LIMIT $1 OFFSET $2`,
             [limit, offset]
         );
 
-        await redisClient.set(cacheKey, JSON.stringify(result.rows), {
+        const countQuery = await pool.query(
+            `SELECT COUNT(*) 
+         FROM "user"
+         WHERE role_id = 1`
+        );
+
+        const totalRecords = Number(countQuery.rows[0].count);
+        const totalPages = Math.ceil(totalRecords / limit);
+
+        const response = {
+            admins: dataQuery.rows,
+            totalRecords,
+            totalPages,
+            currentPage: page,
+        };
+
+        // Cache completo (no solo rows)
+        await redisClient.set(cacheKey, JSON.stringify(response), {
             EX: 60,
         });
 
-        return result.rows;
+        return response;
     }
 
     static async findById(user_id) {
         const result = await pool.query(
             `SELECT * FROM "user" 
-         WHERE user_id = $1 AND role_id = 1`,
+         WHERE user_id = $1`,
             [user_id]
         );
         return result.rows[0] || null;

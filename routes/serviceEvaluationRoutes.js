@@ -1,4 +1,4 @@
-import ServiceEvaluationController from '../controllers/ServiceEvaluationController.js'
+import ServiceEvaluationController from '../controllers/serviceEvaluationController.js'
 import express from 'express'
 
 const router = express.Router()

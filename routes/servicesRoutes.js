@@ -63,7 +63,7 @@ router.post('/login', ServicesController.loginController)
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/verify-2fa',ServicesController.verifyTwoStepVerificationCodeController)
+router.post('/two-factor', ServicesController.verifyTwoStepVerificationCodeController);
 
 /**
  * @swagger

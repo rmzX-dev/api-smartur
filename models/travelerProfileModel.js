@@ -1,18 +1,5 @@
 import pool from '../config/db.js'
 
-/**
- * CREATE TABLE traveler_profile (
-  id_profile SERIAL PRIMARY KEY,
-  user_id INT NOT NULL,
-  age INT,
-  gender VARCHAR(20),
-  travel_type VARCHAR(50),
-  interests TEXT,
-  restrictions TEXT,
-  sustainable_preferences BOOLEAN DEFAULT FALSE,
-  FOREIGN KEY (user_id) REFERENCES "user"(user_id)
-);
- */
 class TravelerProfile {
     static async findAllTravelerProfile() {
         const result = await pool.query(`SELECT * FROM traveler_profile`)

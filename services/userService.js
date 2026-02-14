@@ -1,14 +1,16 @@
-import pool from '../config/db.js'
-import bcrypt from 'bcrypt'
-import jwt from 'jsonwebtoken'
-import { findByEmail } from '../validators/userValidators.js'
+import pool from '../config/db.js';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { findByEmail } from '../validators/userValidators.js';
 
-const SALT_ROUNDS = 10
+const SALT_ROUNDS = 10;
 
 export class UserService {
     static async generateResetToken(email) {
         const user = await findByEmail(email);
-        if (!user) return null;
+        if (!user) {
+            throw new Error('Usuario no encontrado');
+        }
 
         const token = String(Math.floor(100000 + Math.random() * 900000));
         const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
@@ -99,7 +101,7 @@ export class UserService {
             };
         } catch (error) {
             console.error('Error en login:', error);
-            return { status: 500, message: 'Error del servidor' };
+            return { status: 500, message: 'Error del servidor', error: error.message };
         }
     }
 
@@ -164,4 +166,6 @@ export class UserService {
             return { status: 500, message: 'Error del servidor' };
         }
     }
+
+    
 }

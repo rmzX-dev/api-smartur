@@ -93,6 +93,8 @@ router.get('/admin/:id', AdminController.getById)
  */
 router.post('/admin', AdminController.create)
 
+router.put('/admin', AdminController.update)
+
 /**
  * @swagger
  * /api/admin/delete/{id}:

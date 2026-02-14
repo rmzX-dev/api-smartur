@@ -3,6 +3,7 @@ import {
     validateEmail,
     validatePassword,
     validateRequiredFields,
+    emailExists,
 } from '../validators/userValidators.js';
 
 class AdminController {
@@ -11,13 +12,15 @@ class AdminController {
             const page = parseInt(req.query.page) || 1;
             const limit = Math.min(parseInt(req.query.limit) || 50, 100);
 
-            const admins = await Admin.findAll(page, limit);
+            const result = await Admin.findAll(page, limit);
 
             res.json({
-                message: 'Administradoress obtenidos exitosamente',
-                count: admins.length,
-                admins: admins.map((admin) => ({
-                    id: admin.admin_id,
+                message: 'Administradores obtenidos exitosamente',
+                totalRecords: result.totalRecords,
+                totalPages: result.totalPages,
+                currentPage: result.currentPage,
+                admins: result.admins.map((admin) => ({
+                    id: admin.user_id,
                     name: admin.name,
                     email: admin.email,
                     role_id: admin.role_id,
@@ -71,6 +74,7 @@ class AdminController {
             validateRequiredFields({ name, email, password });
             validateEmail(email);
             validatePassword(password);
+            await emailExists(email);
 
             const admin = await Admin.create(req.body);
 
