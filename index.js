@@ -20,6 +20,8 @@ import pointOfInterestRouter from './routes/pointOfInterestRoutes.js';
 import tourismExpenditureRouter from './routes/tourismExpenditureRoutes.js';
 import TourismEnploymentRouter from './routes/tourismEmploymentRoutes.js';
 import TourismInputRouter from './routes/tourismInputsRoutes.js';
+
+import userRuta from './routes/userRuta.js';
 import { connectRedis } from './config/redis.js';
 
 dotenv.config();
@@ -32,23 +34,22 @@ app.use(express.json());
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-app.use('/api', userRoutes);
-app.use('/api', adminRoutes);
-app.use('/api', servicesRoutes);
-app.use('/api', companyRoutes);
-app.use('/api', touristActivitiesRoutes);
-app.use('/api', templateRoutes);
-app.use('/api', travelerProfileRoutes);
-app.use('/api', locationRoutes);
-app.use('/api', criterionRoutes);
-app.use('/api', touristServicesRoutes);
-app.use('/api', serviceEvaluationRouter);
-app.use('/api', evaluationDetailRouter);
-app.use('/api', serviceCertificationRouter);
-app.use('/api', pointOfInterestRouter);
-app.use('/api', tourismExpenditureRouter);
-app.use('/api', TourismEnploymentRouter);
-app.use('/api', TourismInputRouter);
+app.use('/api/v2', servicesRoutes);
+app.use('/api/v2', companyRoutes);
+app.use('/api/v2', touristActivitiesRoutes);
+app.use('/api/v2', templateRoutes);
+app.use('/api/v2', travelerProfileRoutes);
+app.use('/api/v2', locationRoutes);
+app.use('/api/v2', criterionRoutes);
+app.use('/api/v2', touristServicesRoutes);
+app.use('/api/v2', serviceEvaluationRouter);
+app.use('/api/v2', evaluationDetailRouter);
+app.use('/api/v2', serviceCertificationRouter);
+app.use('/api/v2', pointOfInterestRouter);
+app.use('/api/v2', tourismExpenditureRouter);
+app.use('/api/v2', TourismEnploymentRouter);
+app.use('/api/v2', TourismInputRouter);
+app.use('/api/v2', userRuta);
 
 await connectRedis();
 

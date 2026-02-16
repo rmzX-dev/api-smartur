@@ -8,66 +8,54 @@ const SALT_ROUNDS = 10;
 export class UserService {
     static async generateResetToken(email) {
         const user = await findByEmail(email);
-        if (!user) {
-            throw new Error('Usuario no encontrado');
-        }
+        if (!user) throw new Error('Usuario no encontrado');
 
         const token = String(Math.floor(100000 + Math.random() * 900000));
         const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
         await pool.query(
             `INSERT INTO password_reset_tokens (user_id, token, expires_at)
-             VALUES ($1, $2, $3)`,
+         VALUES ($1, $2, $3)`,
             [user.user_id, token, expiresAt]
         );
-        return { user, token };
-    }
 
-    static async verifyResetCode(email, token) {
-        const user = await findByEmail(email);
-        if (!user) return false;
-
-        const result = await pool.query(
-            `SELECT * FROM password_reset_tokens
-             WHERE user_id = $1 AND token = $2 AND used = FALSE AND expires_at > NOW()`,
-            [user.user_id, token]
-        );
-        return result.rowCount > 0;
+        return token;
     }
 
     static async resetPassword(email, token, newPassword) {
-        try {
-            const user = await findByEmail(email);
-            if (!user) {
-                throw new Error('Usuario no encontrado');
-            }
+        const user = await findByEmail(email);
+        if (!user) throw new Error('Usuario no encontrado');
 
-            const tokenResult = await pool.query(
-                `SELECT * FROM password_reset_tokens
-             WHERE user_id = $1 AND token = $2 AND used = FALSE AND expires_at > NOW()`,
-                [user.user_id, token]
-            );
+        const tokenResult = await pool.query(
+            `SELECT id FROM password_reset_tokens
+         WHERE user_id = $1 
+         AND token = $2 
+         AND used = FALSE 
+         AND expires_at > NOW()`,
+            [user.user_id, token]
+        );
 
-            if (tokenResult.rows.length === 0) {
-                throw new Error('Código inválido o expirado');
-            }
-
-            const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
-
-            await pool.query(`UPDATE "user" SET password = $1 WHERE user_id = $2`, [
-                hashedPassword,
-                user.user_id,
-            ]);
-
-            await pool.query(`UPDATE password_reset_tokens SET used = TRUE WHERE id = $1`, [
-                tokenResult.rows[0].id,
-            ]);
-            return user;
-        } catch (error) {
-            throw error; // Propagar el error para manejo externo
+        if (tokenResult.rowCount === 0) {
+            throw new Error('Código inválido o expirado');
         }
+
+        const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+        await pool.query('BEGIN');
+
+        await pool.query(`UPDATE "user" SET password = $1 WHERE user_id = $2`, [
+            hashedPassword,
+            user.user_id,
+        ]);
+
+        await pool.query(`UPDATE password_reset_tokens SET used = TRUE WHERE id = $1`, [
+            tokenResult.rows[0].id,
+        ]);
+
+        await pool.query('COMMIT');
     }
 
+    
     static async login(email, password) {
         try {
             const user = await findByEmail(email);
@@ -166,6 +154,4 @@ export class UserService {
             return { status: 500, message: 'Error del servidor' };
         }
     }
-
-    
 }

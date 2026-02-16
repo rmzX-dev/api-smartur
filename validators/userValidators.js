@@ -5,7 +5,6 @@ export async function findByEmail(email) {
         const result = await pool.query('SELECT * FROM "user" WHERE email = $1', [email]);
         return result.rows[0];
     } catch (error) {
-        //error personalizado
         throw new Error('Error al buscar usuario');
     }
 }
@@ -13,7 +12,6 @@ export async function findByEmail(email) {
 export function validateEmail(email) {
     const regexEmail = /\S+@\S+\.\S+/;
     if (!regexEmail.test(email)) {
-        //eror personalizado
         throw new Error('El email ingresado no es válido');
     }
 }
@@ -21,8 +19,14 @@ export function validateEmail(email) {
 export async function emailExists(email) {
     const result = await findByEmail(email);
 
-    if ( result ) {
+    if (result) {
         throw new Error('El email ingresado ya existe');
+    }
+}
+
+export function validateRole(role_id) {
+    if (role_id !== 1 && role_id !== 2) {
+        throw new Error('El rol ingresado no es válido');
     }
 }
 
@@ -45,3 +49,4 @@ export function validateRequiredFields(fields) {
         }
     }
 }
+
