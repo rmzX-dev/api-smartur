@@ -3,8 +3,6 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { swaggerSpec, swaggerUi } from './docs/swagger.js';
 
-import userRoutes from './routes/userRoutes.js';
-import adminRoutes from './routes/adminRoutes.js';
 import servicesRoutes from './routes/servicesRoutes.js';
 import companyRoutes from './routes/companyRoutes.js';
 import touristActivitiesRoutes from './routes/touristActivitiesRoutes.js';
@@ -20,8 +18,7 @@ import pointOfInterestRouter from './routes/pointOfInterestRoutes.js';
 import tourismExpenditureRouter from './routes/tourismExpenditureRoutes.js';
 import TourismEnploymentRouter from './routes/tourismEmploymentRoutes.js';
 import TourismInputRouter from './routes/tourismInputsRoutes.js';
-
-import userRuta from './routes/userRuta.js';
+import UserRouter from './routes/userRoutes.js'
 import { connectRedis } from './config/redis.js';
 
 dotenv.config();
@@ -49,7 +46,7 @@ app.use('/api/v2', pointOfInterestRouter);
 app.use('/api/v2', tourismExpenditureRouter);
 app.use('/api/v2', TourismEnploymentRouter);
 app.use('/api/v2', TourismInputRouter);
-app.use('/api/v2', userRuta);
+app.use('/api/v2', UserRouter);
 
 await connectRedis();
 

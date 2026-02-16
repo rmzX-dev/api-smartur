@@ -1,32 +1,55 @@
 import pool from '../config/db.js';
 import bcrypt from 'bcrypt';
-import redisClient from '../config/redis.js';
 
 const SALT_ROUNDS = 10;
 
 class User {
-    static async findAll(page = 1, limit = 100) {
+    static async findAll(page = 1, limit = 50, search = '', role = null) {
         const offset = (page - 1) * limit;
 
-        const cacheKey = `users:page:${page}:limit:${limit}`;
+        const values = [];
+        const conditions = [];
+        let index = 1;
 
-        const cachedUsers = await redisClient.get(cacheKey);
-        if (cachedUsers) {
-            return JSON.parse(cachedUsers);
+        if (search) {
+            conditions.push(`(name ILIKE $${index} OR email ILIKE $${index})`);
+            values.push(`%${search}%`);
+            index++;
         }
 
-        const result = await pool.query(
-            `SELECT * FROM "user"
-       ORDER BY created_at DESC
-       LIMIT $1 OFFSET $2`,
-            [limit, offset]
+        if (role) {
+            conditions.push(`role_id = $${index}`);
+            values.push(role);
+            index++;
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        // 1️⃣ Contar total con filtros
+        const countQuery = await pool.query(`SELECT COUNT(*) FROM "user" ${whereClause}`, values);
+
+        const totalRecords = parseInt(countQuery.rows[0].count);
+        const totalPages = Math.ceil(totalRecords / limit);
+
+        // 2️⃣ Obtener datos paginados
+        const dataQuery = await pool.query(
+            `
+        SELECT *
+        FROM "user"
+        ${whereClause}
+        ORDER BY user_id
+        LIMIT $${index}
+        OFFSET $${index + 1}
+        `,
+            [...values, limit, offset]
         );
 
-        await redisClient.set(cacheKey, JSON.stringify(result.rows), {
-            EX: 30,
-        });
-
-        return result.rows;
+        return {
+            totalRecords,
+            totalPages,
+            currentPage: page,
+            users: dataQuery.rows,
+        };
     }
 
     static async findById(user_id) {
@@ -52,31 +75,59 @@ class User {
         return result.rows[0];
     }
 
-    static async update(user_id, data) {
-        const { name, email, is_active } = data;
-
-        const result = await pool.query(
-            `UPDATE "user" 
-             SET name = COALESCE($1, name), email = COALESCE($2, email)
-             WHERE user_id = $3 and role_id = 2
-             RETURNING *`,
-            [name, email, is_active,user_id]
-        );
-
-        return result.rows[0] || null;
-    }
-
     static async delete(user_id) {
         const result = await pool.query(
             `UPDATE "user" 
          SET is_active = FALSE
-         WHERE
+         WHERE user_id = $1 AND is_active = TRUE
          RETURNING *`,
             [user_id]
         );
         return result.rows[0] || null;
     }
 
+    static async patch(user_id, data) {
+        const { name, password, role_id, is_active } = data;
+
+        const fields = [];
+        const values = [];
+        let index = 1;
+
+        if (name !== undefined) {
+            fields.push(`name = $${index++}`);
+            values.push(name);
+        }
+
+        if (password !== undefined) {
+            const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+            fields.push(`password = $${index++}`);
+            values.push(hashedPassword);
+        }
+
+        if (role_id !== undefined) {
+            fields.push(`role_id = $${index++}`);
+            values.push(role_id);
+        }
+
+        if (is_active !== undefined) {
+            fields.push(`is_active = $${index++}`);
+            values.push(is_active);
+        }
+
+        if (fields.length === 0) {
+            return null;
+        }
+
+        const result = await pool.query(
+            `UPDATE "user"
+         SET ${fields.join(', ')}
+         WHERE user_id = $${index}
+         RETURNING *`,
+            [...values, user_id]
+        );
+
+        return result.rows[0] || null;
+    }
 }
 
 export default User;

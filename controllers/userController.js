@@ -3,6 +3,8 @@ import {
     validateEmail,
     validatePassword,
     validateRequiredFields,
+    emailExists,
+    validateRole
 } from '../validators/userValidators.js';
 
 class UserController {
@@ -11,12 +13,17 @@ class UserController {
             const page = parseInt(req.query.page) || 1;
             const limit = Math.min(parseInt(req.query.limit) || 50, 100);
 
-            const users = await User.findAll(page, limit);
+            const search = req.query.search || '';
+            const role = req.query.role ? parseInt(req.query.role) : null;
+
+            const result = await User.findAll(page, limit, search, role);
 
             res.json({
                 message: 'Usuarios obtenidos exitosamente',
-                count: users.length,
-                users: users.map((user) => ({
+                totalRecords: result.totalRecords,
+                totalPages: result.totalPages,
+                currentPage: result.currentPage,
+                users: result.users.map((user) => ({
                     id: user.user_id,
                     name: user.name,
                     email: user.email,
@@ -66,11 +73,13 @@ class UserController {
 
     static async create(req, res) {
         try {
-            const { name, email, password } = req.body;
+            const { name, email, password, role_id } = req.body;
 
-            validateRequiredFields({ name, email, password });
+            validateRequiredFields({ name, email, password, role_id });
             validateEmail(email);
             validatePassword(password);
+            validateRole(role_id);
+            await emailExists(email);
 
             const user = await User.create(req.body);
 
@@ -94,9 +103,19 @@ class UserController {
         }
     }
 
-    static async update(req, res) {
+    static async patch(req, res) {
         try {
-            const user = await User.update(req.params.id, req.body);
+            const { name, password, role_id, is_active } = req.body;
+
+            if (password !== undefined) {
+                validatePassword(password);
+            }
+
+            if (role_id !== undefined) {
+                validateRole(role_id);
+            }
+
+            const user = await User.patch(req.params.id, req.body);
 
             if (!user) {
                 return res.status(404).json({ message: 'Usuario no encontrado' });
@@ -141,33 +160,6 @@ class UserController {
             });
         } catch (error) {
             console.error('Error deleting user:', error);
-            res.status(500).json({
-                message: 'Error interno del servidor',
-                error: error.message,
-            });
-        }
-    }
-
-    static async toggleActive(req, res) {
-        try {
-            const user = await User.toggleActive(req.params.id);
-
-            if (!user) {
-                return res.status(404).json({ message: 'Usuario no encontrado' });
-            }
-
-            res.json({
-                message: `Usuario ${user.is_active ? 'activado' : 'desactivado'} exitosamente`,
-                user: {
-                    id: user.user_id,
-                    name: user.name,
-                    email: user.email,
-                    is_active: user.is_active,
-                    updated_at: user.updated_at,
-                },
-            });
-        } catch (error) {
-            console.error('Error toggling user status:', error);
             res.status(500).json({
                 message: 'Error interno del servidor',
                 error: error.message,
