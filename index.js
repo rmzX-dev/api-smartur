@@ -18,7 +18,7 @@ import pointOfInterestRouter from './routes/pointOfInterestRoutes.js';
 import tourismExpenditureRouter from './routes/tourismExpenditureRoutes.js';
 import TourismEnploymentRouter from './routes/tourismEmploymentRoutes.js';
 import TourismInputRouter from './routes/tourismInputsRoutes.js';
-import UserRouter from './routes/userRoutes.js'
+import UserRouter from './routes/userRoutes.js';
 import { connectRedis } from './config/redis.js';
 
 dotenv.config();
@@ -31,6 +31,7 @@ app.use(express.json());
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+app.use('/api/v2/service-evaluation', serviceEvaluationRouter);
 app.use('/api/v2', servicesRoutes);
 app.use('/api/v2', companyRoutes);
 app.use('/api/v2', touristActivitiesRoutes);
@@ -39,7 +40,6 @@ app.use('/api/v2', travelerProfileRoutes);
 app.use('/api/v2', locationRoutes);
 app.use('/api/v2', criterionRoutes);
 app.use('/api/v2', touristServicesRoutes);
-app.use('/api/v2', serviceEvaluationRouter);
 app.use('/api/v2', evaluationDetailRouter);
 app.use('/api/v2', serviceCertificationRouter);
 app.use('/api/v2', pointOfInterestRouter);

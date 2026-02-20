@@ -33,6 +33,8 @@ class TouristServicesController {
                     id_location: service.id_location,
                     service_type: service.service_type,
                     active: service.active,
+                    id_evaluation: service.id_evaluation,
+                    total_score: service.total_score,
                     created_at: service.created_at,
                 })),
             });
@@ -63,6 +65,8 @@ class TouristServicesController {
                     id_location: service.id_location,
                     service_type: service.service_type,
                     active: service.active,
+                    id_evaluation: service.id_evaluation,
+                    total_score: service.total_score,
                     created_at: service.created_at,
                 },
             });
@@ -80,11 +84,9 @@ class TouristServicesController {
             const { name, id_company, id_location, service_type } = req.body;
 
             if (!name || !id_company || !id_location || !service_type) {
-                return res
-                    .status(400)
-                    .json({
-                        message: 'Nombre, empresa, ubicación y tipo de servicio son requeridos',
-                    });
+                return res.status(400).json({
+                    message: 'Nombre, empresa, ubicación y tipo de servicio son requeridos',
+                });
             }
 
             const service = await TouristServices.create(req.body);

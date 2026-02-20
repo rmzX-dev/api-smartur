@@ -16,25 +16,25 @@ class TouristServices {
         let index = 1;
 
         if (search) {
-            conditions.push(`name ILIKE $${index}`);
+            conditions.push(`ts.name ILIKE $${index}`);
             values.push(`%${search}%`);
             index++;
         }
 
         if (company) {
-            conditions.push(`id_company = $${index}`);
+            conditions.push(`ts.id_company = $${index}`);
             values.push(company);
             index++;
         }
 
         if (type) {
-            conditions.push(`service_type = $${index}`);
+            conditions.push(`ts.service_type = $${index}`);
             values.push(type);
             index++;
         }
 
         if (active !== null) {
-            conditions.push(`active = $${index}`);
+            conditions.push(`ts.active = $${index}`);
             values.push(active);
             index++;
         }
@@ -43,20 +43,21 @@ class TouristServices {
 
         // 1️⃣ Contar total con filtros
         const countQuery = await pool.query(
-            `SELECT COUNT(*) FROM tourist_service ${whereClause}`,
+            `SELECT COUNT(*) FROM tourist_service ts ${whereClause}`,
             values
         );
 
         const totalRecords = parseInt(countQuery.rows[0].count);
         const totalPages = Math.ceil(totalRecords / limit);
 
-        // 2️⃣ Obtener datos paginados
+        // 2️⃣ Obtener datos paginados con ID de evaluación si existe
         const dataQuery = await pool.query(
             `
-        SELECT *
-        FROM tourist_service
+        SELECT ts.*, 
+            (SELECT id_evaluation FROM service_evaluation WHERE id_service = ts.id_service ORDER BY created_at DESC LIMIT 1) as id_evaluation
+        FROM tourist_service ts
         ${whereClause}
-        ORDER BY id_service
+        ORDER BY ts.id_service
         LIMIT $${index}
         OFFSET $${index + 1}
         `,
@@ -73,8 +74,11 @@ class TouristServices {
 
     static async findById(id_service) {
         const result = await pool.query(
-            `SELECT * FROM tourist_service 
-         WHERE id_service = $1`,
+            `SELECT ts.*, 
+                (SELECT id_evaluation FROM service_evaluation WHERE id_service = ts.id_service ORDER BY created_at DESC LIMIT 1) as id_evaluation,
+                (SELECT total_score FROM service_evaluation WHERE id_service = ts.id_service ORDER BY created_at DESC LIMIT 1) as total_score
+             FROM tourist_service ts
+             WHERE ts.id_service = $1`,
             [id_service]
         );
         return result.rows[0] || null;

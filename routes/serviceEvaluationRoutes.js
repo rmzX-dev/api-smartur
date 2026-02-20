@@ -1,14 +1,23 @@
-import ServiceEvaluationController from '../controllers/serviceEvaluationController.js'
-import express from 'express'
+import ServiceEvaluationController from '../controllers/serviceEvaluationController.js';
+import express from 'express';
 
-const router = express.Router()
+const router = express.Router();
 
-router.get('/service-evaluation', ServiceEvaluationController.findAllServiceEvaluationController)
-router.get('/service-evaluation/:id_evaluation', ServiceEvaluationController.findServiceEvaluationByIdController)
-router.post('/service-evaluation/register', ServiceEvaluationController.createServiceEvaluationController)
-router.delete('/service-evaluation/delete/:id_evaluation', ServiceEvaluationController.deleteServiceEvaluationController)
-router.put('/service-evaluation/update/:id_evaluation', ServiceEvaluationController.updateServiceEvaluationController)
-router.put('/service-evaluation/status/:id_evaluation', ServiceEvaluationController.updateStatusController)
+router.get('/', ServiceEvaluationController.findAllServiceEvaluationController);
 
-export default router
+router.post('/register', ServiceEvaluationController.createServiceEvaluationController);
 
+router.post('/batch-register', ServiceEvaluationController.createFullEvaluationController);
+
+router.get('/:id_evaluation', ServiceEvaluationController.findServiceEvaluationByIdController);
+
+router.delete(
+    '/delete/:id_evaluation',
+    ServiceEvaluationController.deleteServiceEvaluationController
+);
+
+router.put('/update/:id_evaluation', ServiceEvaluationController.updateServiceEvaluationController);
+
+router.put('/status/:id_evaluation', ServiceEvaluationController.updateStatusController);
+
+export default router;
