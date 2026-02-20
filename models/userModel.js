@@ -61,6 +61,15 @@ class User {
         return result.rows[0] || null;
     }
 
+    static async findByEmail(email) {
+        try {
+            const result = await pool.query('SELECT * FROM "user" WHERE email = $1', [email]);
+            return result.rows[0];
+        } catch (error) {
+            throw new Error('Error al buscar usuario');
+        }
+    }
+
     static async create(data) {
         const { name, email, password, role_id } = data;
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);

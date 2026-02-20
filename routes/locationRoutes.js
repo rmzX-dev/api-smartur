@@ -1,10 +1,12 @@
-import locationController from "../controllers/locationController.js";
-import express from 'express'
+import express from 'express';
+import LocationController from '../controllers/locationController.js';
 
-const router = express.Router()
-router.get('/location', locationController.findAllLocationController)
-router.get('/location/:id_location', locationController.findLocationById)
-router.post('/location/register', locationController.createLocationController)
-router.delete('/location/delete/:id_location', locationController.deleteLocationController)
+const router = express.Router();
 
-export default router
+router.get('/locations', LocationController.getAll);
+router.get('/locations/:id', LocationController.getById);
+router.post('/locations', LocationController.create);
+router.patch('/locations/:id', LocationController.update);
+router.delete('/locations/:id', LocationController.delete);
+
+export default router;
