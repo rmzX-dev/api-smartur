@@ -71,6 +71,35 @@ class UserController {
         }
     }
 
+    static async findByEmail(req, res) {
+        try {
+            const user = await User.findByEmail(req.params.email);
+
+            if (!user) {
+                return res.status(404).json({ message: 'Usuario no encontrado' });
+            }
+
+            res.json({
+                message: 'Usuario obtenido exitosamente',
+                user: {
+                    id: user.user_id,
+                    name: user.name,
+                    email: user.email,
+                    role_id: user.role_id,
+                    is_active: user.is_active,
+                    created_at: user.created_at,
+                    updated_at: user.updated_at,
+                },
+            });
+        } catch (error) {
+            console.error('Error fetching user:', error);
+            res.status(500).json({
+                message: 'Error interno del servidor',
+                error: error.message,
+            });
+        }
+    }
+
     static async create(req, res) {
         try {
             const { name, email, password, role_id } = req.body;

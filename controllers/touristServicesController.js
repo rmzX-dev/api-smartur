@@ -1,13 +1,31 @@
-import TouristServices from "../models/touristServicesModel.js";
+import TouristServices from '../models/touristServicesModel.js';
 
 class TouristServicesController {
-    static async findAllServicesController(req, res) {
+    static async getAll(req, res) {
         try {
-            const services = await TouristServices.findAllServices();
+            const page = parseInt(req.query.page) || 1;
+            const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+
+            const search = req.query.search || '';
+            const company = req.query.company ? parseInt(req.query.company) : null;
+            const type = req.query.type || null;
+            const active = req.query.active !== undefined ? req.query.active === 'true' : null;
+
+            const result = await TouristServices.findAll(
+                page,
+                limit,
+                search,
+                company,
+                type,
+                active
+            );
+
             res.json({
-                message: "Servicios obtenidos exitosamente",
-                count: services.length,
-                services: services.map((service) => ({
+                message: 'Servicios obtenidos exitosamente',
+                totalRecords: result.totalRecords,
+                totalPages: result.totalPages,
+                currentPage: result.currentPage,
+                services: result.services.map((service) => ({
                     id: service.id_service,
                     name: service.name,
                     description: service.description,
@@ -15,28 +33,28 @@ class TouristServicesController {
                     id_location: service.id_location,
                     service_type: service.service_type,
                     active: service.active,
+                    created_at: service.created_at,
                 })),
             });
         } catch (error) {
+            console.error('Error fetching services:', error);
             res.status(500).json({
-                message: "Error interno en el servidor",
+                message: 'Error interno del servidor',
                 error: error.message,
             });
         }
     }
 
-    static async findServicesByIdController(req, res) {
+    static async getById(req, res) {
         try {
-            const service = await TouristServices.findServicesById(
-                req.params.id_service
-            );
+            const service = await TouristServices.findById(req.params.id);
+
             if (!service) {
-                return res
-                    .status(404)
-                    .json({ message: "Servicio no encontrado" });
+                return res.status(404).json({ message: 'Servicio no encontrado' });
             }
-            res.status(200).json({
-                message: "Servicio obtenido exitosamente",
+
+            res.json({
+                message: 'Servicio obtenido exitosamente',
                 service: {
                     id: service.id_service,
                     name: service.name,
@@ -45,51 +63,34 @@ class TouristServicesController {
                     id_location: service.id_location,
                     service_type: service.service_type,
                     active: service.active,
+                    created_at: service.created_at,
                 },
             });
         } catch (error) {
+            console.error('Error fetching service:', error);
             res.status(500).json({
-                message: "Error interno en el servidor",
+                message: 'Error interno del servidor',
                 error: error.message,
             });
         }
     }
 
-    static async createServicesController(req, res) {
+    static async create(req, res) {
         try {
-            const result = await TouristServices.createServices(req.body);
+            const { name, id_company, id_location, service_type } = req.body;
+
+            if (!name || !id_company || !id_location || !service_type) {
+                return res
+                    .status(400)
+                    .json({
+                        message: 'Nombre, empresa, ubicación y tipo de servicio son requeridos',
+                    });
+            }
+
+            const service = await TouristServices.create(req.body);
+
             res.status(201).json({
-                message: "Servicio creado exitosamente",
-                service: {
-                    id: result.id_service,
-                    name: result.name,
-                    description: result.description,
-                    id_company: result.id_company,
-                    id_location: result.id_location,
-                    service_type: result.service_type,
-                    active: result.active,
-                },
-            });
-        } catch (error) {
-            res.status(500).json({
-                message: "Error interno en el servidor",
-                error: error.message,
-            });
-        }
-    }
-
-    static async deleteServicesController(req, res) {
-        try {
-            const service = await TouristServices.deleteServices(
-                req.params.id_service
-            );
-            if (!service) {
-                return res
-                    .status(404)
-                    .json({ message: "Servicio no encontrado" });
-            }
-            res.status(200).json({
-                message: "Servicio eliminado exitosamente",
+                message: 'Servicio creado exitosamente',
                 service: {
                     id: service.id_service,
                     name: service.name,
@@ -98,29 +99,28 @@ class TouristServicesController {
                     id_location: service.id_location,
                     service_type: service.service_type,
                     active: service.active,
+                    created_at: service.created_at,
                 },
             });
         } catch (error) {
+            console.error('Error creating service:', error);
             res.status(500).json({
-                message: "Error interno en el servidor",
+                message: 'Error interno del servidor',
                 error: error.message,
             });
         }
     }
 
-    static async updateServicesController(req, res) {
+    static async update(req, res) {
         try {
-            const service = await TouristServices.updateServices(
-                req.params.id_service,
-                req.body
-            );
+            const service = await TouristServices.update(req.params.id, req.body);
+
             if (!service) {
-                return res
-                    .status(404)
-                    .json({ message: "Servicio no encontrado" });
+                return res.status(404).json({ message: 'Servicio no encontrado' });
             }
-            res.status(200).json({
-                message: "Servicio actualizado exitosamente",
+
+            res.json({
+                message: 'Servicio actualizado exitosamente',
                 service: {
                     id: service.id_service,
                     name: service.name,
@@ -129,15 +129,41 @@ class TouristServicesController {
                     id_location: service.id_location,
                     service_type: service.service_type,
                     active: service.active,
+                    created_at: service.created_at,
                 },
             });
         } catch (error) {
+            console.error('Error updating service:', error);
             res.status(500).json({
-                message: "Error interno en el servidor",
+                message: 'Error interno del servidor',
+                error: error.message,
+            });
+        }
+    }
+
+    static async delete(req, res) {
+        try {
+            const service = await TouristServices.delete(req.params.id);
+
+            if (!service) {
+                return res.status(404).json({ message: 'Servicio no encontrado' });
+            }
+
+            res.json({
+                message: 'Servicio eliminado exitosamente',
+                service: {
+                    id: service.id_service,
+                    name: service.name,
+                },
+            });
+        } catch (error) {
+            console.error('Error deleting service:', error);
+            res.status(500).json({
+                message: 'Error interno del servidor',
                 error: error.message,
             });
         }
     }
 }
 
-export default TouristServicesController;   
+export default TouristServicesController;

@@ -1,72 +1,159 @@
-import pool from "../config/db.js";
+import pool from '../config/db.js';
 
 class TouristServices {
-    static async findAllServices() {
-        const result = await pool.query("SELECT * FROM tourist_service");
-        return result.rows;
+    static async findAll(
+        page = 1,
+        limit = 50,
+        search = '',
+        company = null,
+        type = null,
+        active = null
+    ) {
+        const offset = (page - 1) * limit;
+
+        const values = [];
+        const conditions = [];
+        let index = 1;
+
+        if (search) {
+            conditions.push(`name ILIKE $${index}`);
+            values.push(`%${search}%`);
+            index++;
+        }
+
+        if (company) {
+            conditions.push(`id_company = $${index}`);
+            values.push(company);
+            index++;
+        }
+
+        if (type) {
+            conditions.push(`service_type = $${index}`);
+            values.push(type);
+            index++;
+        }
+
+        if (active !== null) {
+            conditions.push(`active = $${index}`);
+            values.push(active);
+            index++;
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        // 1️⃣ Contar total con filtros
+        const countQuery = await pool.query(
+            `SELECT COUNT(*) FROM tourist_service ${whereClause}`,
+            values
+        );
+
+        const totalRecords = parseInt(countQuery.rows[0].count);
+        const totalPages = Math.ceil(totalRecords / limit);
+
+        // 2️⃣ Obtener datos paginados
+        const dataQuery = await pool.query(
+            `
+        SELECT *
+        FROM tourist_service
+        ${whereClause}
+        ORDER BY id_service
+        LIMIT $${index}
+        OFFSET $${index + 1}
+        `,
+            [...values, limit, offset]
+        );
+
+        return {
+            totalRecords,
+            totalPages,
+            currentPage: page,
+            services: dataQuery.rows,
+        };
     }
 
-    static async findServicesById(id_service) {
+    static async findById(id_service) {
         const result = await pool.query(
-            `SELECT * FROM tourist_service WHERE id_service = $1`,
+            `SELECT * FROM tourist_service 
+         WHERE id_service = $1`,
             [id_service]
         );
-        return result.rows[0];
+        return result.rows[0] || null;
     }
 
-    static async createServices(data) {
-        const {
-            name,
-            description,
-            id_company,
-            id_location,
-            service_type,
-            active,
-        } = data;
+    static async create(data) {
+        const { name, description, id_company, id_location, service_type, active } = data;
+
         const result = await pool.query(
-            `INSERT INTO tourist_service (name, description, id_company, id_location, service_type, active) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id_service, name, description, id_company, id_location, service_type, active`,
-            [
-                name,
-                description,
-                id_company,
-                id_location,
-                service_type,
-                active,
-            ]
+            `INSERT INTO tourist_service (name, description, id_company, id_location, service_type, active) 
+             VALUES ($1, $2, $3, $4, $5, $6) 
+             RETURNING *`,
+            [name, description, id_company, id_location, service_type, active ?? true]
         );
+
         return result.rows[0];
     }
 
-    static async deleteServices(id_service) {
+    static async update(id_service, data) {
+        const { name, description, id_company, id_location, service_type, active } = data;
+
+        const fields = [];
+        const values = [];
+        let index = 1;
+
+        if (name !== undefined) {
+            fields.push(`name = $${index++}`);
+            values.push(name);
+        }
+
+        if (description !== undefined) {
+            fields.push(`description = $${index++}`);
+            values.push(description);
+        }
+
+        if (id_company !== undefined) {
+            fields.push(`id_company = $${index++}`);
+            values.push(id_company);
+        }
+
+        if (id_location !== undefined) {
+            fields.push(`id_location = $${index++}`);
+            values.push(id_location);
+        }
+
+        if (service_type !== undefined) {
+            fields.push(`service_type = $${index++}`);
+            values.push(service_type);
+        }
+
+        if (active !== undefined) {
+            fields.push(`active = $${index++}`);
+            values.push(active);
+        }
+
+        if (fields.length === 0) {
+            return null;
+        }
+
         const result = await pool.query(
-            `DELETE FROM tourist_service WHERE id_service = $1 RETURNING *`,
+            `UPDATE tourist_service
+         SET ${fields.join(', ')}
+         WHERE id_service = $${index}
+         RETURNING *`,
+            [...values, id_service]
+        );
+
+        return result.rows[0] || null;
+    }
+
+    static async delete(id_service) {
+        const result = await pool.query(
+            `UPDATE tourist_service 
+         SET active = FALSE
+         WHERE id_service = $1 AND active = TRUE
+         RETURNING *`,
             [id_service]
         );
-        return result.rows[0];
-    }
-
-    static async updateServices(id_service, data) {
-        const {
-            name,
-            description,
-            id_company,
-            id_location,
-            service_type,
-            active,
-        } = data;
-        const result = await pool.query(
-            `UPDATE tourist_service SET name = $1, description = $2, id_company = $3, id_location = $4, service_type = $5, active = $6 WHERE id_service = $7 RETURNING id_service, name, description, id_company, id_location, service_type, active`,
-            [
-                name,
-                description,
-                id_company,
-                id_location,
-                service_type,
-                active,
-                id_service,
-            ]
-        );
-        return result.rows[0];
+        return result.rows[0] || null;
     }
 }
 

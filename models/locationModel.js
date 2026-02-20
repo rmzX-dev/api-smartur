@@ -1,40 +1,132 @@
-import pool from '../config/db.js'
+import pool from '../config/db.js';
 
 class Location {
-    static async getLocation() {
-        const result = await pool.query('SELECT * FROM location')
-        return result.rows
-    }
+    static async findAll(page = 1, limit = 50, search = '', state = '') {
+        const offset = (page - 1) * limit;
 
-    static async getLocationById(id_location) {
-        const result = await pool.query(
-            'SELECT id_location, name, state, municipality, latitude, longitude FROM location WHERE id_location = $1',
-            [id_location]
-        )
-        return result.rows[0] || null
-    }
+        const values = [];
+        const conditions = [];
+        let index = 1;
 
-    static async createLocation(data) {
-        const { name, state, municipality, latitude, longitude } = data
-        const result = await pool.query(
-            'INSERT INTO location (name, state, municipality, latitude, longitude) VALUES ($1, $2, $3, $4, $5) RETURNING id_location, name, state, municipality, latitude, longitude',
-            [name, state, municipality, latitude, longitude]
-        )
-        return result.rows[0]
-    }
-
-    static async deleteLocation(id_location) {
-        const result = await pool.query(
-            'DELETE FROM location WHERE id_location = $1 RETURNING *',
-            [id_location]
-        )
-
-        if (result.rows.length === 0) {
-            throw new Error('Ubicacion no encontrada')
+        if (search) {
+            conditions.push(`name ILIKE $${index}`);
+            values.push(`%${search}%`);
+            index++;
         }
 
-        return result.rows[0]
+        if (state) {
+            conditions.push(`state ILIKE $${index}`);
+            values.push(`%${state}%`);
+            index++;
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        // 1️⃣ Contar total con filtros
+        const countQuery = await pool.query(`SELECT COUNT(*) FROM location ${whereClause}`, values);
+
+        const totalRecords = parseInt(countQuery.rows[0].count);
+        const totalPages = Math.ceil(totalRecords / limit);
+
+        // 2️⃣ Obtener datos paginados
+        const dataQuery = await pool.query(
+            `
+        SELECT *
+        FROM location
+        ${whereClause}
+        ORDER BY id_location
+        LIMIT $${index}
+        OFFSET $${index + 1}
+        `,
+            [...values, limit, offset]
+        );
+
+        return {
+            totalRecords,
+            totalPages,
+            currentPage: page,
+            locations: dataQuery.rows,
+        };
+    }
+
+    static async findById(id_location) {
+        const result = await pool.query(
+            `SELECT * FROM location 
+         WHERE id_location = $1`,
+            [id_location]
+        );
+        return result.rows[0] || null;
+    }
+
+    static async create(data) {
+        const { name, state, municipality, latitude, longitude } = data;
+
+        const result = await pool.query(
+            `INSERT INTO location (name, state, municipality, latitude, longitude) 
+             VALUES ($1, $2, $3, $4, $5) 
+             RETURNING *`,
+            [name, state, municipality, latitude, longitude]
+        );
+
+        return result.rows[0];
+    }
+
+    static async update(id_location, data) {
+        const { name, state, municipality, latitude, longitude } = data;
+
+        const fields = [];
+        const values = [];
+        let index = 1;
+
+        if (name !== undefined) {
+            fields.push(`name = $${index++}`);
+            values.push(name);
+        }
+
+        if (state !== undefined) {
+            fields.push(`state = $${index++}`);
+            values.push(state);
+        }
+
+        if (municipality !== undefined) {
+            fields.push(`municipality = $${index++}`);
+            values.push(municipality);
+        }
+
+        if (latitude !== undefined) {
+            fields.push(`latitude = $${index++}`);
+            values.push(latitude);
+        }
+
+        if (longitude !== undefined) {
+            fields.push(`longitude = $${index++}`);
+            values.push(longitude);
+        }
+
+        if (fields.length === 0) {
+            return null;
+        }
+
+        const result = await pool.query(
+            `UPDATE location
+         SET ${fields.join(', ')}
+         WHERE id_location = $${index}
+         RETURNING *`,
+            [...values, id_location]
+        );
+
+        return result.rows[0] || null;
+    }
+
+    static async delete(id_location) {
+        const result = await pool.query(
+            `DELETE FROM location 
+         WHERE id_location = $1 
+         RETURNING *`,
+            [id_location]
+        );
+        return result.rows[0] || null;
     }
 }
 
-export default Location
+export default Location;
