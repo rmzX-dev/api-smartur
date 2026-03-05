@@ -1,25 +1,27 @@
-import pool from '../config/db.js'
+import pool from '../config/db.js';
 
 class EvaluationDetail {
     static async findAllEvaluationDetail() {
-        const result = await pool.query('SELECT * FROM evaluation_detail')
-        return result.rows
+        const result = await pool.query('SELECT * FROM evaluation_detail');
+        return result.rows;
     }
 
     static async findEvaluationDetailById(id_detail) {
-        const result = await pool.query(
-            'SELECT * FROM evaluation_detail WHERE id_detail = $1',
-            [id_detail]
-        )
-        return result.rows[0]
+        const result = await pool.query('SELECT * FROM evaluation_detail WHERE id_detail = $1', [
+            id_detail,
+        ]);
+        return result.rows[0];
     }
 
     static async findEvaluationDetailByEvaluationId(id_evaluation) {
         const result = await pool.query(
-            'SELECT * FROM evaluation_detail WHERE id_evaluation = $1',
+            `SELECT ed.*, ec.name as criterion_name 
+             FROM evaluation_detail ed
+             INNER JOIN evaluation_criterion ec ON ed.id_criterion = ec.id_criterion
+             WHERE ed.id_evaluation = $1`,
             [id_evaluation]
-        )
-        return result.rows
+        );
+        return result.rows;
     }
 
     static async createEvaluationDetail(data) {
@@ -30,11 +32,16 @@ class EvaluationDetail {
             id_selected_subcriterion,
             observations,
             attached_evidences,
-        } = data
+        } = data;
 
-        const evidencesJson = Array.isArray(attached_evidences)
-            ? JSON.stringify(attached_evidences)
-            : attached_evidences
+        // Formateo JSON obligatorio
+        const evidencesJson = JSON.stringify(attached_evidences || []);
+
+        // Asegurar null para id_selected_subcriterion si no es válido
+        const subcriterionId =
+            id_selected_subcriterion && !isNaN(id_selected_subcriterion)
+                ? id_selected_subcriterion
+                : null;
 
         const result = await pool.query(
             `INSERT INTO evaluation_detail 
@@ -44,13 +51,13 @@ class EvaluationDetail {
             [
                 id_evaluation,
                 id_criterion,
-                assigned_score,
-                id_selected_subcriterion,
+                Number(assigned_score || 0),
+                subcriterionId,
                 observations,
                 evidencesJson,
             ]
-        )
-        return result.rows[0]
+        );
+        return result.rows[0];
     }
 
     static async updateEvaluationDetail(id_detail, data) {
@@ -61,11 +68,16 @@ class EvaluationDetail {
             id_selected_subcriterion,
             observations,
             attached_evidences,
-        } = data
+        } = data;
 
-        const evidencesJson = Array.isArray(attached_evidences)
-            ? JSON.stringify(attached_evidences)
-            : attached_evidences
+        // Formateo JSON obligatorio
+        const evidencesJson = JSON.stringify(attached_evidences || []);
+
+        // Asegurar null para id_selected_subcriterion si no es válido
+        const subcriterionId =
+            id_selected_subcriterion && !isNaN(id_selected_subcriterion)
+                ? id_selected_subcriterion
+                : null;
 
         const result = await pool.query(
             `UPDATE evaluation_detail 
@@ -76,23 +88,23 @@ class EvaluationDetail {
             [
                 id_evaluation,
                 id_criterion,
-                assigned_score,
-                id_selected_subcriterion,
+                Number(assigned_score || 0),
+                subcriterionId,
                 observations,
                 evidencesJson,
                 id_detail,
             ]
-        )
-        return result.rows[0]
+        );
+        return result.rows[0];
     }
 
     static async deleteEvaluationDetail(id_detail) {
         const result = await pool.query(
             'DELETE FROM evaluation_detail WHERE id_detail = $1 RETURNING *',
             [id_detail]
-        )
-        return result.rows[0]
+        );
+        return result.rows[0];
     }
 }
 
-export default EvaluationDetail
+export default EvaluationDetail;

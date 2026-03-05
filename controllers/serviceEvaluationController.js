@@ -1,14 +1,18 @@
 import ServiceEvaluation from '../models/serviceEvaluationModel.js';
+import EvaluationDetail from '../models/evaluationDetailModel.js';
 class ServiceEvaluationController {
     static async findAllServiceEvaluationController(req, res) {
         try {
-            const evaluations = await ServiceEvaluation.findAllServiceEvaluation()
+            const evaluations = await ServiceEvaluation.findAllServiceEvaluation();
             res.json({
                 message: 'Evaluaciones de servicio obtenidas exitosamente',
                 count: evaluations.length,
                 evaluations: evaluations.map((evaluation) => ({
                     id: evaluation.id_evaluation,
                     serviceId: evaluation.id_service,
+                    serviceName: evaluation.service_name,
+                    restaurantName: evaluation.restaurant_name,
+                    restaurantAddress: evaluation.restaurant_address,
                     templateId: evaluation.id_template,
                     evaluationDate: evaluation.evaluation_date,
                     evaluatorId: evaluation.evaluator_id,
@@ -19,28 +23,40 @@ class ServiceEvaluationController {
                     createdAt: evaluation.created_at,
                     updatedAt: evaluation.updated_at,
                 })),
-            })
+            });
         } catch (error) {
             res.status(500).json({
-                message: 'Error interno en el servidor',
+                message: 'Error en findAllServiceEvaluationController',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async findServiceEvaluationByIdController(req, res) {
+        console.log(
+            'DEBUG BACKEND: findServiceEvaluationByIdController called with id:',
+            req.params.id_evaluation
+        );
         try {
-            const evaluation = await ServiceEvaluation.findServiceEvaluationById(req.params.id_evaluation)
+            const evaluation = await ServiceEvaluation.findServiceEvaluationById(
+                req.params.id_evaluation
+            );
             if (!evaluation) {
-                return res
-                    .status(404)
-                    .json({ message: 'Evaluación de servicio no encontrada' })
+                return res.status(404).json({ message: 'Evaluación de servicio no encontrada' });
             }
+
+            const details = await EvaluationDetail.findEvaluationDetailByEvaluationId(
+                req.params.id_evaluation
+            );
+
             res.status(200).json({
                 message: 'Evaluación de servicio obtenida exitosamente',
                 evaluation: {
                     id: evaluation.id_evaluation,
                     serviceId: evaluation.id_service,
+                    serviceName: evaluation.service_name,
+                    restaurantName: evaluation.restaurant_name,
+                    restaurantAddress: evaluation.restaurant_address,
                     templateId: evaluation.id_template,
                     evaluationDate: evaluation.evaluation_date,
                     evaluatorId: evaluation.evaluator_id,
@@ -50,19 +66,20 @@ class ServiceEvaluationController {
                     generalObservations: evaluation.general_observations,
                     createdAt: evaluation.created_at,
                     updatedAt: evaluation.updated_at,
+                    details: details,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
-                message: 'Error interno en el servidor',
+                message: 'Error en findServiceEvaluationByIdController',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async createServiceEvaluationController(req, res) {
         try {
-            const result = await ServiceEvaluation.createServiceEvaluation(req.body)
+            const result = await ServiceEvaluation.createServiceEvaluation(req.body);
             res.status(201).json({
                 message: 'Evaluación de servicio creada exitosamente',
                 evaluation: {
@@ -78,22 +95,70 @@ class ServiceEvaluationController {
                     createdAt: result.created_at,
                     updatedAt: result.updated_at,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
-                message: 'Error interno en el servidor',
+                message: 'Error en createServiceEvaluationController',
                 error: error.message,
-            })
+            });
+        }
+    }
+
+    static async createFullEvaluationController(req, res) {
+        console.log(
+            'DEBUG BACKEND: createFullEvaluationController body:',
+            JSON.stringify(req.body, null, 2)
+        );
+        try {
+            const {
+                id_service,
+                id_template,
+                evaluator_id,
+                evaluation_time,
+                general_observations,
+                details,
+                evaluation_date,
+            } = req.body;
+
+            if (!details || !Array.isArray(details) || details.length === 0) {
+                return res
+                    .status(400)
+                    .json({ message: 'Se requieren los detalles de la evaluación' });
+            }
+
+            const result = await ServiceEvaluation.createCompleteEvaluation(
+                {
+                    id_service,
+                    id_template,
+                    evaluator_id,
+                    evaluation_time,
+                    general_observations,
+                    evaluation_date,
+                },
+                details
+            );
+
+            res.status(201).json({
+                message: 'Evaluación completa registrada con éxito',
+                evaluationId: result.id_evaluation,
+                finalScore: result.total_score,
+            });
+        } catch (error) {
+            console.error('DEBUG BACKEND ERROR in createFullEvaluationController:', error);
+            res.status(500).json({
+                message: 'Error en createFullEvaluationController (Backend)',
+                error: error.message,
+            });
         }
     }
 
     static async deleteServiceEvaluationController(req, res) {
         try {
-            const evaluation = await ServiceEvaluation.deleteServiceEvaluation(req.params.id_evaluation)
+            const evaluation = await ServiceEvaluation.deleteServiceEvaluation(
+                req.params.id_evaluation
+            );
             if (!evaluation) {
-                return res
-                    .status(404)
-                    .json({ message: 'Evaluación de servicio no encontrada' })
+                return res.status(404).json({ message: 'Evaluación de servicio no encontrada' });
             }
             res.status(200).json({
                 message: 'Evaluación de servicio eliminada exitosamente',
@@ -110,22 +175,23 @@ class ServiceEvaluationController {
                     createdAt: evaluation.created_at,
                     updatedAt: evaluation.updated_at,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async updateServiceEvaluationController(req, res) {
         try {
-            const evaluation = await ServiceEvaluation.updateServiceEvaluation(req.params.id_evaluation, req.body)
+            const evaluation = await ServiceEvaluation.updateServiceEvaluation(
+                req.params.id_evaluation,
+                req.body
+            );
             if (!evaluation) {
-                return res
-                    .status(404)
-                    .json({ message: 'Evaluación de servicio no encontrada' })
+                return res.status(404).json({ message: 'Evaluación de servicio no encontrada' });
             }
             res.status(200).json({
                 message: 'Evaluación de servicio actualizada exitosamente',
@@ -142,23 +208,24 @@ class ServiceEvaluationController {
                     createdAt: evaluation.created_at,
                     updatedAt: evaluation.updated_at,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async updateStatusController(req, res) {
         try {
-            const { status } = req.body
-            const evaluation = await ServiceEvaluation.updateStatus(req.params.id_evaluation, status)
+            const { status } = req.body;
+            const evaluation = await ServiceEvaluation.updateStatus(
+                req.params.id_evaluation,
+                status
+            );
             if (!evaluation) {
-                return res
-                    .status(404)
-                    .json({ message: 'Evaluación de servicio no encontrada' })
+                return res.status(404).json({ message: 'Evaluación de servicio no encontrada' });
             }
             res.status(200).json({
                 message: 'Estado de evaluación actualizado exitosamente',
@@ -174,14 +241,14 @@ class ServiceEvaluationController {
                     generalObservations: evaluation.general_observations,
                     updatedAt: evaluation.updated_at,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 }
 
-export default ServiceEvaluationController
+export default ServiceEvaluationController;

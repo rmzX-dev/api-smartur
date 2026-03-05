@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import ServiceEvaluationController from "../controllers/serviceEvaluationController.js";
 import express from "express";
 import { verifyToken } from "../middleware/authMiddleware.js";
@@ -40,4 +41,28 @@ router.put(
   ServiceEvaluationController.updateStatusController,
 );
 
+=======
+import ServiceEvaluationController from '../controllers/serviceEvaluationController.js';
+import express from 'express';
+
+const router = express.Router();
+
+router.get('/', ServiceEvaluationController.findAllServiceEvaluationController);
+
+router.post('/register', ServiceEvaluationController.createServiceEvaluationController);
+
+router.post('/batch-register', ServiceEvaluationController.createFullEvaluationController);
+
+router.get('/:id_evaluation', ServiceEvaluationController.findServiceEvaluationByIdController);
+
+router.delete(
+    '/delete/:id_evaluation',
+    ServiceEvaluationController.deleteServiceEvaluationController
+);
+
+router.put('/update/:id_evaluation', ServiceEvaluationController.updateServiceEvaluationController);
+
+router.put('/status/:id_evaluation', ServiceEvaluationController.updateStatusController);
+
+>>>>>>> 467a09b7a48563e19856dabdea321df0e2d7c904
 export default router;
