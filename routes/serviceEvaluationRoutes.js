@@ -1,47 +1,3 @@
-<<<<<<< HEAD
-import ServiceEvaluationController from "../controllers/serviceEvaluationController.js";
-import express from "express";
-import { verifyToken } from "../middleware/authMiddleware.js";
-import { requireRole } from "../middleware/rbacMiddleware.js";
-
-const router = express.Router();
-
-router.get(
-  "/service-evaluation",
-  verifyToken,
-  ServiceEvaluationController.findAllServiceEvaluationController,
-);
-router.get(
-  "/service-evaluation/:id_evaluation",
-  verifyToken,
-  ServiceEvaluationController.findServiceEvaluationByIdController,
-);
-router.post(
-  "/service-evaluation/register",
-  verifyToken,
-  requireRole([1]),
-  ServiceEvaluationController.createServiceEvaluationController,
-);
-router.delete(
-  "/service-evaluation/delete/:id_evaluation",
-  verifyToken,
-  requireRole([1]),
-  ServiceEvaluationController.deleteServiceEvaluationController,
-);
-router.put(
-  "/service-evaluation/update/:id_evaluation",
-  verifyToken,
-  requireRole([1]),
-  ServiceEvaluationController.updateServiceEvaluationController,
-);
-router.put(
-  "/service-evaluation/status/:id_evaluation",
-  verifyToken,
-  requireRole([1]),
-  ServiceEvaluationController.updateStatusController,
-);
-
-=======
 import ServiceEvaluationController from '../controllers/serviceEvaluationController.js';
 import express from 'express';
 
@@ -64,5 +20,4 @@ router.put('/update/:id_evaluation', ServiceEvaluationController.updateServiceEv
 
 router.put('/status/:id_evaluation', ServiceEvaluationController.updateStatusController);
 
->>>>>>> 467a09b7a48563e19856dabdea321df0e2d7c904
 export default router;
