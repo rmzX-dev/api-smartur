@@ -1,10 +1,25 @@
-import TourismInputsController from '../controllers/tourismInputsController.js'
-import express from 'express'
+import TourismInputsController from "../controllers/tourismInputsController.js";
+import express from "express";
+import { verifyToken } from "../middleware/authMiddleware.js";
+import { requireRole } from "../middleware/rbacMiddleware.js";
 
-const router = express.Router()
+const router = express.Router();
 
-router.get('/tourism-inputs', TourismInputsController.findAllController)
-router.get('/tourism-inputs/:id_input', TourismInputsController.findByIdController)
-router.post('/tourism-inputs/register', TourismInputsController.createController)
+router.get(
+  "/tourism-inputs",
+  verifyToken,
+  TourismInputsController.findAllController,
+);
+router.get(
+  "/tourism-inputs/:id_input",
+  verifyToken,
+  TourismInputsController.findByIdController,
+);
+router.post(
+  "/tourism-inputs/register",
+  verifyToken,
+  requireRole([1]),
+  TourismInputsController.createController,
+);
 
-export default router
+export default router;

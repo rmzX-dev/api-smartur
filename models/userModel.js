@@ -25,13 +25,13 @@ class User {
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        // 1️⃣ Contar total con filtros
+        // 1️ Contar total con filtros
         const countQuery = await pool.query(`SELECT COUNT(*) FROM "user" ${whereClause}`, values);
 
         const totalRecords = parseInt(countQuery.rows[0].count);
         const totalPages = Math.ceil(totalRecords / limit);
 
-        // 2️⃣ Obtener datos paginados
+        // 2️ Obtener datos paginados
         const dataQuery = await pool.query(
             `
         SELECT *

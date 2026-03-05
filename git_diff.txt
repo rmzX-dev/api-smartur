@@ -1,0 +1,2121 @@
+diff --git a/README.md b/README.md
+index db723f0..29a7150 100644
+--- a/README.md
++++ b/README.md
+@@ -1,5 +1,24 @@
++# API SMARTUR
++
++## 🔒 Seguridad
++
++Este proyecto implementa mitigaciones para las vulnerabilidades **OWASP Top 10** más críticas:
++
++| # | Vulnerabilidad | Control |
++|---|---|---|
++| A01 | Control de Acceso Roto | RBAC + validación de propiedad (JWT middleware) |
++| A02 | Fallas Criptográficas | MFA con OTP por correo + bcrypt |
++| A03 | Inyección SQL | Consultas parametrizadas con `pg` ($1, $2) |
++| A04 | Diseño Inseguro / Hardening | `helmet` + `express-rate-limit` + `npm audit` |
++| A09 | Registro y Monitoreo | `security_events` en PostgreSQL + Grafana |
++
++📄 **[Ver documentación completa de seguridad → SECURITY.md](./SECURITY.md)**
++
++---
++
+ ## ⚡ Instalación y Configuración
+ 
++
+ 1. **Clona el repositorio**
+ ```zsh
+ git clone https://github.com/rmzX-dev/api-smartur
+@@ -24,6 +43,7 @@ DB_PASSWORD={tu contraseña de postgres}
+ DB_NAME={base de datos}
+ DB_PORT=5432
+ JWT_SECRET={contraseña secreta}
++FRONTEND_URL=http://localhost:5173,http://localhost:3000
+ 
+ EMAIL_USER=smarturutcv@gmail.com
+ EMAIL_PASS=lihichglnpzlhddg
+@@ -45,8 +65,15 @@ psql -U {tu_usuario} -d {nombre_base_datos} -f bd.sql
+    - Abre pgAdmin y conéctate a tu servidor
+    - Haz clic derecho sobre la base de datos creada y selecciona "Query Tool"
+    - Abre y ejecuta el archivo `bd.sql`
++   - Para monitoreo de seguridad, ejecuta también: `database/setup_logs.sql` en la misma base de datos.
++
++6. **Opcional - Grafana (monitoreo de eventos de seguridad):**
++   - Levanta Grafana: `docker compose up -d grafana`
++   - Accede a http://localhost:3001 (usuario/contraseña por defecto: admin/admin)
++   - Añade PostgreSQL como Data Source con las credenciales de tu `.env` (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT)
++   - Crea un panel Time Series con la query: `SELECT event_time AS "time", count(*) AS "Intentos Fallidos" FROM security_events WHERE event_type = 'LOGIN_FAIL' GROUP BY 1 ORDER BY 1`
+ 
+-6. **Inicia el servidor:**
++7. **Inicia el servidor:**
+ ```zsh
+ node index.js
+ ```
+diff --git a/bd.sql b/bd.sql
+index 3405c33..545231b 100644
+--- a/bd.sql
++++ b/bd.sql
+@@ -249,4 +249,23 @@ CREATE TABLE password_reset_tokens (
+   FOREIGN KEY (user_id) REFERENCES "user"(user_id)
+ );
+ 
++-- ============================================
++-- A5: REGISTRO DE SEGURIDAD Y AUDITORÍA
++-- Tabla para observabilidad de eventos de auth
++-- Usada por: services/monitoringService.js
++-- ============================================
++CREATE TABLE security_events (
++  id SERIAL PRIMARY KEY,
++  event_type VARCHAR(100) NOT NULL,  -- LOGIN_ATTEMPT, LOGIN_FAILED, MFA_FAILED, etc.
++  user_email VARCHAR(100),
++  ip_address VARCHAR(50),
++  severity VARCHAR(20) DEFAULT 'INFO', -- INFO, WARNING, ERROR
++  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
++);
++
++-- Índice para consultas de Grafana ordenadas por tiempo
++CREATE INDEX idx_security_events_created_at ON security_events(created_at DESC);
++-- Índice para filtrar por tipo de evento
++CREATE INDEX idx_security_events_type ON security_events(event_type);
++
+ COMMIT;
+\ No newline at end of file
+diff --git a/controllers/serviceController.js b/controllers/serviceController.js
+index 3b69b05..1c43e0c 100644
+--- a/controllers/serviceController.js
++++ b/controllers/serviceController.js
+@@ -1,37 +1,49 @@
+ import { UserService } from '../services/userService.js';
+ import { sendEmail, sendEmailVerification } from '../utils/mailer.js';
+ import { validatePassword, validateRequiredFields } from '../validators/userValidators.js';
++import { logSecurityEvent } from '../services/monitoringService.js';
++
++function getClientIp(req) {
++    const forwarded = req.headers['x-forwarded-for'];
++    if (forwarded) return forwarded.split(',')[0].trim();
++    return req.socket?.remoteAddress ?? req.ip ?? null;
++}
+ 
+ 
+ class ServicesController {
+     static async forgotPasswordController(req, res) {
++        const ip = getClientIp(req);
+         try {
+             const { email } = req.body;
+ 
+             const token = await UserService.generateResetToken(email);
+             await sendEmail(email, token);
+-
++            await logSecurityEvent('PASSWORD_RESET_REQUEST', email, ip, 'INFO');
+             res.json({ message: 'Código enviado correctamente' });
+         } catch (error) {
++            await logSecurityEvent('UNAUTHORIZED', req.body?.email ?? null, ip, 'WARN');
+             res.status(400).json({ message: error.message });
+         }
+     }
+ 
+     static async resetPasswordController(req, res) {
++        const ip = getClientIp(req);
+         try {
+             const { email, token, newPassword } = req.body;
+ 
+             validatePassword(newPassword);
+ 
+             await UserService.resetPassword(email, token, newPassword);
+-
++            await logSecurityEvent('PASSWORD_RESET_SUCCESS', email, ip, 'INFO');
+             res.json({ message: 'Contraseña actualizada correctamente' });
+         } catch (error) {
++            await logSecurityEvent('UNAUTHORIZED', req.body?.email ?? null, ip, 'WARN');
+             res.status(400).json({ message: error.message });
+         }
+     }
+ 
+     static async loginController(req, res) {
++        const ip = getClientIp(req);
+         try {
+             const { email, password } = req.body;
+ 
+@@ -40,6 +52,7 @@ class ServicesController {
+             const result = await UserService.login(email, password);
+ 
+             if (result.status === 200) {
++                await logSecurityEvent('LOGIN_STEP1', email, ip, 'INFO');
+                 await sendEmailVerification(email, result.data.verificationCode);
+                 return res.status(200).json({
+                     message: 'Código de verificación enviado',
+@@ -49,23 +62,28 @@ class ServicesController {
+                 });
+             }
+ 
++            await logSecurityEvent('LOGIN_FAIL', email ?? null, ip, 'WARN');
+             return res.status(result.status).json({ message: result.message, error: result.error });
+         } catch (error) {
+             console.error('Error en loginController:', error);
++            await logSecurityEvent('LOGIN_FAIL', req.body?.email ?? null, ip, 'WARN').catch(() => {});
+             return res.status(500).json({ message: 'Error del servidor', error: error.message });
+         }
+     }
+ 
+     static async verifyTwoStepVerificationCodeController(req, res) {
++        const ip = getClientIp(req);
+         try {
+             const { email, token } = req.body;
+ 
+             const result = await UserService.verifyTwoStepVerificationCode(email, token);
+ 
+             if (result.status !== 200) {
++                await logSecurityEvent('MFA_DENIED', email ?? null, ip, 'WARN');
+                 return res.status(result.status).json({ message: result.message });
+             }
+ 
++            await logSecurityEvent('LOGIN_SUCCESS', email ?? null, ip, 'INFO');
+             res.json({
+                 message: 'Login exitoso',
+                 token: result.data.token,
+@@ -73,6 +91,7 @@ class ServicesController {
+             });
+         } catch (error) {
+             console.error('Error en verifyTwoStepVerificationCodeController:', error);
++            await logSecurityEvent('MFA_DENIED', req.body?.email ?? null, ip, 'WARN').catch(() => {});
+             res.status(500).json({ error: error.message });
+         }
+     }
+diff --git a/controllers/userController.js b/controllers/userController.js
+index 7da590b..b913dea 100644
+--- a/controllers/userController.js
++++ b/controllers/userController.js
+@@ -1,200 +1,246 @@
+-import User from '../models/userModel.js';
++import User from "../models/userModel.js";
+ import {
+-    validateEmail,
+-    validatePassword,
+-    validateRequiredFields,
+-    emailExists,
+-    validateRole
+-} from '../validators/userValidators.js';
++  validateEmail,
++  validatePassword,
++  validateRequiredFields,
++  emailExists,
++  validateRole,
++} from "../validators/userValidators.js";
+ 
+ class UserController {
+-    static async getAll(req, res) {
+-        try {
+-            const page = parseInt(req.query.page) || 1;
+-            const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+-
+-            const search = req.query.search || '';
+-            const role = req.query.role ? parseInt(req.query.role) : null;
+-
+-            const result = await User.findAll(page, limit, search, role);
+-
+-            res.json({
+-                message: 'Usuarios obtenidos exitosamente',
+-                totalRecords: result.totalRecords,
+-                totalPages: result.totalPages,
+-                currentPage: result.currentPage,
+-                users: result.users.map((user) => ({
+-                    id: user.user_id,
+-                    name: user.name,
+-                    email: user.email,
+-                    role_id: user.role_id,
+-                    is_active: user.is_active,
+-                    created_at: user.created_at,
+-                    updated_at: user.updated_at,
+-                })),
+-            });
+-        } catch (error) {
+-            console.error('Error fetching users:', error);
+-            res.status(500).json({
+-                message: 'Error interno del servidor',
+-                error: error.message,
+-            });
+-        }
++  static async getAll(req, res) {
++    try {
++      const page = parseInt(req.query.page) || 1;
++      const limit = Math.min(parseInt(req.query.limit) || 50, 100);
++
++      const search = req.query.search || "";
++      const role = req.query.role ? parseInt(req.query.role) : null;
++
++      const result = await User.findAll(page, limit, search, role);
++
++      res.json({
++        message: "Usuarios obtenidos exitosamente",
++        totalRecords: result.totalRecords,
++        totalPages: result.totalPages,
++        currentPage: result.currentPage,
++        users: result.users.map((user) => ({
++          id: user.user_id,
++          name: user.name,
++          email: user.email,
++          role_id: user.role_id,
++          is_active: user.is_active,
++          created_at: user.created_at,
++          updated_at: user.updated_at,
++        })),
++      });
++    } catch (error) {
++      console.error("Error fetching users:", error);
++      res.status(500).json({
++        message: "Error interno del servidor",
++        error: error.message,
++      });
+     }
+-
+-    static async getById(req, res) {
+-        try {
+-            const user = await User.findById(req.params.id);
+-
+-            if (!user) {
+-                return res.status(404).json({ message: 'Usuario no encontrado' });
+-            }
+-
+-            res.json({
+-                message: 'Usuario obtenido exitosamente',
+-                user: {
+-                    id: user.user_id,
+-                    name: user.name,
+-                    email: user.email,
+-                    role_id: user.role_id,
+-                    is_active: user.is_active,
+-                    created_at: user.created_at,
+-                    updated_at: user.updated_at,
+-                },
+-            });
+-        } catch (error) {
+-            console.error('Error fetching user:', error);
+-            res.status(500).json({
+-                message: 'Error interno del servidor',
+-                error: error.message,
+-            });
+-        }
++  }
++
++  static async getById(req, res) {
++    try {
++      const user = await User.findById(req.params.id);
++
++      if (!user) {
++        return res.status(404).json({ message: "Usuario no encontrado" });
++      }
++
++      res.json({
++        message: "Usuario obtenido exitosamente",
++        user: {
++          id: user.user_id,
++          name: user.name,
++          email: user.email,
++          role_id: user.role_id,
++          is_active: user.is_active,
++          created_at: user.created_at,
++          updated_at: user.updated_at,
++        },
++      });
++    } catch (error) {
++      console.error("Error fetching user:", error);
++      res.status(500).json({
++        message: "Error interno del servidor",
++        error: error.message,
++      });
+     }
+-
+-    static async findByEmail(req, res) {
+-        try {
+-            const user = await User.findByEmail(req.params.email);
+-
+-            if (!user) {
+-                return res.status(404).json({ message: 'Usuario no encontrado' });
+-            }
+-
+-            res.json({
+-                message: 'Usuario obtenido exitosamente',
+-                user: {
+-                    id: user.user_id,
+-                    name: user.name,
+-                    email: user.email,
+-                    role_id: user.role_id,
+-                    is_active: user.is_active,
+-                    created_at: user.created_at,
+-                    updated_at: user.updated_at,
+-                },
+-            });
+-        } catch (error) {
+-            console.error('Error fetching user:', error);
+-            res.status(500).json({
+-                message: 'Error interno del servidor',
+-                error: error.message,
+-            });
+-        }
++  }
++
++  static async findByEmail(req, res) {
++    try {
++      const user = await User.findByEmail(req.params.email);
++
++      if (!user) {
++        return res.status(404).json({ message: "Usuario no encontrado" });
++      }
++
++      res.json({
++        message: "Usuario obtenido exitosamente",
++        user: {
++          id: user.user_id,
++          name: user.name,
++          email: user.email,
++          role_id: user.role_id,
++          is_active: user.is_active,
++          created_at: user.created_at,
++          updated_at: user.updated_at,
++        },
++      });
++    } catch (error) {
++      console.error("Error fetching user:", error);
++      res.status(500).json({
++        message: "Error interno del servidor",
++        error: error.message,
++      });
+     }
+-
+-    static async create(req, res) {
+-        try {
+-            const { name, email, password, role_id } = req.body;
+-
+-            validateRequiredFields({ name, email, password, role_id });
+-            validateEmail(email);
+-            validatePassword(password);
+-            validateRole(role_id);
+-            await emailExists(email);
+-
+-            const user = await User.create(req.body);
+-
+-            res.status(201).json({
+-                message: 'Usuario creado exitosamente',
+-                user: {
+-                    id: user.user_id,
+-                    name: user.name,
+-                    email: user.email,
+-                    role_id: user.role_id,
+-                    is_active: user.is_active,
+-                    created_at: user.created_at,
+-                },
+-            });
+-        } catch (error) {
+-            console.error('Error creating user:', error);
+-            res.status(500).json({
+-                message: 'Error interno del servidor',
+-                error: error.message,
+-            });
+-        }
++  }
++
++  static async create(req, res) {
++    try {
++      const { name, email, password, role_id } = req.body;
++
++      validateRequiredFields({ name, email, password, role_id });
++      validateEmail(email);
++      validatePassword(password);
++      validateRole(role_id);
++      await emailExists(email);
++
++      const user = await User.create(req.body);
++
++      res.status(201).json({
++        message: "Usuario creado exitosamente",
++        user: {
++          id: user.user_id,
++          name: user.name,
++          email: user.email,
++          role_id: user.role_id,
++          is_active: user.is_active,
++          created_at: user.created_at,
++        },
++      });
++    } catch (error) {
++      console.error("Error creating user:", error);
++      const isValidationError =
++        error.message.includes("requerid") ||
++        error.message.includes("válido") ||
++        error.message.includes("existe") ||
++        error.message.includes("contraseña");
++      res.status(isValidationError ? 400 : 500).json({
++        message: isValidationError
++          ? error.message
++          : "Error interno del servidor",
++        error: error.message,
++      });
+     }
+-
+-    static async patch(req, res) {
+-        try {
+-            const { name, password, role_id, is_active } = req.body;
+-
+-            if (password !== undefined) {
+-                validatePassword(password);
+-            }
+-
+-            if (role_id !== undefined) {
+-                validateRole(role_id);
+-            }
+-
+-            const user = await User.patch(req.params.id, req.body);
+-
+-            if (!user) {
+-                return res.status(404).json({ message: 'Usuario no encontrado' });
+-            }
+-
+-            res.json({
+-                message: 'Usuario actualizado exitosamente',
+-                user: {
+-                    id: user.user_id,
+-                    name: user.name,
+-                    email: user.email,
+-                    role_id: user.role_id,
+-                    is_active: user.is_active,
+-                    updated_at: user.updated_at,
+-                },
+-            });
+-        } catch (error) {
+-            console.error('Error updating user:', error);
+-            res.status(500).json({
+-                message: 'Error interno del servidor',
+-                error: error.message,
+-            });
+-        }
++  }
++
++  static async register(req, res) {
++    try {
++      const { name, email, password } = req.body;
++      const role_id = 2; // Rol de usuario regular
++
++      validateRequiredFields({ name, email, password, role_id });
++      validateEmail(email);
++      validatePassword(password);
++      await emailExists(email);
++
++      const user = await User.create({ name, email, password, role_id });
++
++      res.status(201).json({
++        message: "Registro exitoso",
++        user: {
++          id: user.user_id,
++          name: user.name,
++          email: user.email,
++          role_id: user.role_id,
++          is_active: user.is_active,
++          created_at: user.created_at,
++        },
++      });
++    } catch (error) {
++      console.error("Error registering user:", error);
++      const isValidationError =
++        error.message.includes("requerid") ||
++        error.message.includes("válido") ||
++        error.message.includes("existe") ||
++        error.message.includes("contraseña");
++      res.status(isValidationError ? 400 : 500).json({
++        message: isValidationError
++          ? error.message
++          : "Error interno del servidor",
++        error: error.message,
++      });
+     }
+-
+-    static async delete(req, res) {
+-        try {
+-            const user = await User.delete(req.params.id);
+-
+-            if (!user) {
+-                return res.status(404).json({ message: 'Usuario no encontrado' });
+-            }
+-
+-            res.json({
+-                message: 'Usuario eliminado exitosamente',
+-                user: {
+-                    id: user.user_id,
+-                    name: user.name,
+-                    email: user.email,
+-                    deleted_at: user.deleted_at,
+-                },
+-            });
+-        } catch (error) {
+-            console.error('Error deleting user:', error);
+-            res.status(500).json({
+-                message: 'Error interno del servidor',
+-                error: error.message,
+-            });
+-        }
++  }
++
++  static async patch(req, res) {
++    try {
++      const { name, password, role_id, is_active } = req.body;
++
++      if (password !== undefined) {
++        validatePassword(password);
++      }
++
++      if (role_id !== undefined) {
++        validateRole(role_id);
++      }
++
++      const user = await User.patch(req.params.id, req.body);
++
++      if (!user) {
++        return res.status(404).json({ message: "Usuario no encontrado" });
++      }
++
++      res.json({
++        message: "Usuario actualizado exitosamente",
++        user: {
++          id: user.user_id,
++          name: user.name,
++          email: user.email,
++          role_id: user.role_id,
++          is_active: user.is_active,
++          updated_at: user.updated_at,
++        },
++      });
++    } catch (error) {
++      console.error("Error updating user:", error);
++      res.status(500).json({
++        message: "Error interno del servidor",
++        error: error.message,
++      });
++    }
++  }
++
++  static async delete(req, res) {
++    try {
++      const user = await User.delete(req.params.id);
++
++      if (!user) {
++        return res.status(404).json({ message: "Usuario no encontrado" });
++      }
++
++      res.json({
++        message: "Usuario eliminado exitosamente",
++        user: {
++          id: user.user_id,
++          name: user.name,
++          email: user.email,
++          deleted_at: user.deleted_at,
++        },
++      });
++    } catch (error) {
++      console.error("Error deleting user:", error);
++      res.status(500).json({
++        message: "Error interno del servidor",
++        error: error.message,
++      });
+     }
++  }
+ }
+ 
+ export default UserController;
+diff --git a/index.js b/index.js
+index ce90ba8..4edd5fb 100644
+--- a/index.js
++++ b/index.js
+@@ -1,66 +1,106 @@
+-import express from 'express';
+-import cors from 'cors';
+-import dotenv from 'dotenv';
+-import { swaggerSpec, swaggerUi } from './docs/swagger.js';
++import express from "express";
++import cors from "cors";
++import helmet from "helmet";
++import dotenv from "dotenv";
++import rateLimit from "express-rate-limit";
++import { swaggerSpec, swaggerUi } from "./docs/swagger.js";
++import { securitySwaggerSpec } from "./docs/swagger.security.js";
+ 
+-import servicesRoutes from './routes/servicesRoutes.js';
+-import companyRoutes from './routes/companyRoutes.js';
+-import touristActivitiesRoutes from './routes/touristActivitiesRoutes.js';
+-import templateRoutes from './routes/evaluationTemplatesRoutes.js';
+-import travelerProfileRoutes from './routes/travelerProfileRoutes.js';
+-import locationRoutes from './routes/locationRoutes.js';
+-import criterionRoutes from './routes/criterionRoutes.js';
+-import touristServicesRoutes from './routes/touristServicesRoutes.js';
+-import serviceEvaluationRouter from './routes/serviceEvaluationRoutes.js';
+-import evaluationDetailRouter from './routes/evaluationDetailRoutes.js';
+-import serviceCertificationRouter from './routes/serviceCertificationRoutes.js';
+-import pointOfInterestRouter from './routes/pointOfInterestRoutes.js';
+-import tourismExpenditureRouter from './routes/tourismExpenditureRoutes.js';
+-import TourismEnploymentRouter from './routes/tourismEmploymentRoutes.js';
+-import TourismInputRouter from './routes/tourismInputsRoutes.js';
+-import UserRouter from './routes/userRoutes.js'
+-import { connectRedis } from './config/redis.js';
++import servicesRoutes from "./routes/servicesRoutes.js";
++import companyRoutes from "./routes/companyRoutes.js";
++import touristActivitiesRoutes from "./routes/touristActivitiesRoutes.js";
++import templateRoutes from "./routes/evaluationTemplatesRoutes.js";
++import travelerProfileRoutes from "./routes/travelerProfileRoutes.js";
++import locationRoutes from "./routes/locationRoutes.js";
++import criterionRoutes from "./routes/criterionRoutes.js";
++import touristServicesRoutes from "./routes/touristServicesRoutes.js";
++import serviceEvaluationRouter from "./routes/serviceEvaluationRoutes.js";
++import evaluationDetailRouter from "./routes/evaluationDetailRoutes.js";
++import serviceCertificationRouter from "./routes/serviceCertificationRoutes.js";
++import pointOfInterestRouter from "./routes/pointOfInterestRoutes.js";
++import tourismExpenditureRouter from "./routes/tourismExpenditureRoutes.js";
++import TourismEnploymentRouter from "./routes/tourismEmploymentRoutes.js";
++import TourismInputRouter from "./routes/tourismInputsRoutes.js";
++import UserRouter from "./routes/userRoutes.js";
++import SecurityRouter from "./routes/securityRoutes.js";
++import { connectRedis } from "./config/redis.js";
+ 
+ dotenv.config();
+ 
+ const app = express();
++app.set("trust proxy", 1);
+ 
+-// Configurar CORS
++// ── A4: Hardening — Helmet configura cabeceras de seguridad HTTP
++// Activa: X-Frame-Options (Frameguard), X-Content-Type-Options, Strict-Transport-Security, etc.
++app.use(helmet());
++app.disable("x-powered-by");
++
++const allowedOrigins = process.env.FRONTEND_URL
++  ? process.env.FRONTEND_URL.split(",")
++      .map((o) => o.trim())
++      .filter(Boolean)
++  : ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"];
+ const corsOptions = {
+-    origin: [
+-        'http://localhost:5173',      // Vit port
+-        'http://localhost:3000',      // Local
+-    ],
+-    credentials: true,
+-    optionsSuccessStatus: 200
++  origin: allowedOrigins,
++  credentials: true,
++  optionsSuccessStatus: 200,
+ };
+-
+ app.use(cors(corsOptions));
+ app.use(express.json());
+ 
+-// Swagger Documentation
+-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
++// ── A4: Rate Limiting — Protección contra fuerza bruta en rutas de autenticación
++// Librería: express-rate-limit  |  Archivo: index.js, línea 50
++// Limita a 5 intentos por IP cada 1 minuto en /login y /two-factor
++const authLimiter = rateLimit({
++  windowMs: 1 * 60 * 1000, // 1 minuto
++  max: 5,
++  standardHeaders: true,
++  legacyHeaders: false,
++  message: {
++    message: "Demasiados intentos. Intenta de nuevo en 1 minuto.",
++  },
++});
++app.use("/api/v2/login", authLimiter);
++app.use("/api/v2/two-factor", authLimiter);
++
++// Main Swagger Documentation
++app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
++
++//  Security Audit Swagger — Verifica las 5 mitigaciones OWASP
++app.use(
++  "/security-docs",
++  swaggerUi.serve,
++  swaggerUi.setup(securitySwaggerSpec, {
++    swaggerOptions: {
++      defaultModelsExpandDepth: -1,
++      docExpansion: "list",
++      filter: true,
++    },
++    customSiteTitle: " SMARTUR Security Audit",
++  }),
++);
+ 
+-app.use('/api/v2', servicesRoutes);
+-app.use('/api/v2', companyRoutes);
+-app.use('/api/v2', touristActivitiesRoutes);
+-app.use('/api/v2', templateRoutes);
+-app.use('/api/v2', travelerProfileRoutes);
+-app.use('/api/v2', locationRoutes);
+-app.use('/api/v2', criterionRoutes);
+-app.use('/api/v2', touristServicesRoutes);
+-app.use('/api/v2', serviceEvaluationRouter);
+-app.use('/api/v2', evaluationDetailRouter);
+-app.use('/api/v2', serviceCertificationRouter);
+-app.use('/api/v2', pointOfInterestRouter);
+-app.use('/api/v2', tourismExpenditureRouter);
+-app.use('/api/v2', TourismEnploymentRouter);
+-app.use('/api/v2', TourismInputRouter);
+-app.use('/api/v2', UserRouter);
++app.use("/api/v2", servicesRoutes);
++app.use("/api/v2", companyRoutes);
++app.use("/api/v2", touristActivitiesRoutes);
++app.use("/api/v2", templateRoutes);
++app.use("/api/v2", travelerProfileRoutes);
++app.use("/api/v2", locationRoutes);
++app.use("/api/v2", criterionRoutes);
++app.use("/api/v2", touristServicesRoutes);
++app.use("/api/v2", serviceEvaluationRouter);
++app.use("/api/v2", evaluationDetailRouter);
++app.use("/api/v2", serviceCertificationRouter);
++app.use("/api/v2", pointOfInterestRouter);
++app.use("/api/v2", tourismExpenditureRouter);
++app.use("/api/v2", TourismEnploymentRouter);
++app.use("/api/v2", TourismInputRouter);
++app.use("/api/v2", UserRouter);
++app.use("/api/v2", SecurityRouter);
+ 
+ await connectRedis();
+ 
+ const PORT = process.env.PORT || 3000;
+ app.listen(PORT, () => {
+-    console.log(`Servidor corriendo en http://localhost:${PORT}`);
++  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+ });
+diff --git a/models/userModel.js b/models/userModel.js
+index 896cfb6..46a5f45 100644
+--- a/models/userModel.js
++++ b/models/userModel.js
+@@ -25,13 +25,13 @@ class User {
+ 
+         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+ 
+-        // 1️⃣ Contar total con filtros
++        // 1️ Contar total con filtros
+         const countQuery = await pool.query(`SELECT COUNT(*) FROM "user" ${whereClause}`, values);
+ 
+         const totalRecords = parseInt(countQuery.rows[0].count);
+         const totalPages = Math.ceil(totalRecords / limit);
+ 
+-        // 2️⃣ Obtener datos paginados
++        // 2️ Obtener datos paginados
+         const dataQuery = await pool.query(
+             `
+         SELECT *
+diff --git a/package-lock.json b/package-lock.json
+index 4f87c68..62ca2f4 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -13,6 +13,8 @@
+         "cors": "^2.8.5",
+         "dotenv": "^17.2.3",
+         "express": "^5.1.0",
++        "express-rate-limit": "^8.2.1",
++        "helmet": "^8.1.0",
+         "jsonwebtoken": "^9.0.2",
+         "nodemailer": "^7.0.9",
+         "pg": "^8.16.3",
+@@ -184,23 +186,27 @@
+       }
+     },
+     "node_modules/body-parser": {
+-      "version": "2.2.0",
+-      "resolved": "https://registry.npmjs.org/body-parser/-/body-parser-2.2.0.tgz",
+-      "integrity": "sha512-02qvAaxv8tp7fBa/mw1ga98OGm+eCbqzJOKoRt70sLmfEEi+jyBYVTDGfCL/k06/4EMk/z01gCe7HoCH/f2LTg==",
++      "version": "2.2.2",
++      "resolved": "https://registry.npmjs.org/body-parser/-/body-parser-2.2.2.tgz",
++      "integrity": "sha512-oP5VkATKlNwcgvxi0vM0p/D3n2C3EReYVX+DNYs5TjZFn/oQt2j+4sVJtSMr18pdRr8wjTcBl6LoV+FUwzPmNA==",
+       "license": "MIT",
+       "dependencies": {
+         "bytes": "^3.1.2",
+         "content-type": "^1.0.5",
+-        "debug": "^4.4.0",
++        "debug": "^4.4.3",
+         "http-errors": "^2.0.0",
+-        "iconv-lite": "^0.6.3",
++        "iconv-lite": "^0.7.0",
+         "on-finished": "^2.4.1",
+-        "qs": "^6.14.0",
+-        "raw-body": "^3.0.0",
+-        "type-is": "^2.0.0"
++        "qs": "^6.14.1",
++        "raw-body": "^3.0.1",
++        "type-is": "^2.0.1"
+       },
+       "engines": {
+         "node": ">=18"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/express"
+       }
+     },
+     "node_modules/brace-expansion": {
+@@ -523,6 +529,24 @@
+         "url": "https://opencollective.com/express"
+       }
+     },
++    "node_modules/express-rate-limit": {
++      "version": "8.2.1",
++      "resolved": "https://registry.npmjs.org/express-rate-limit/-/express-rate-limit-8.2.1.tgz",
++      "integrity": "sha512-PCZEIEIxqwhzw4KF0n7QF4QqruVTcF73O5kFKUnGOyjbCCgizBBiFaYpd/fnBLUMPw/BWw9OsiN7GgrNYr7j6g==",
++      "license": "MIT",
++      "dependencies": {
++        "ip-address": "10.0.1"
++      },
++      "engines": {
++        "node": ">= 16"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/express-rate-limit"
++      },
++      "peerDependencies": {
++        "express": ">= 4.11"
++      }
++    },
+     "node_modules/finalhandler": {
+       "version": "2.1.0",
+       "resolved": "https://registry.npmjs.org/finalhandler/-/finalhandler-2.1.0.tgz",
+@@ -667,6 +691,15 @@
+         "node": ">= 0.4"
+       }
+     },
++    "node_modules/helmet": {
++      "version": "8.1.0",
++      "resolved": "https://registry.npmjs.org/helmet/-/helmet-8.1.0.tgz",
++      "integrity": "sha512-jOiHyAZsmnr8LqoPGmCjYAaiuWwjAPLgY8ZX2XrmHawt99/u1y6RgrZMTeoPfpUbV96HOalYgz1qzkRbw54Pmg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=18.0.0"
++      }
++    },
+     "node_modules/http-errors": {
+       "version": "2.0.0",
+       "resolved": "https://registry.npmjs.org/http-errors/-/http-errors-2.0.0.tgz",
+@@ -693,15 +726,19 @@
+       }
+     },
+     "node_modules/iconv-lite": {
+-      "version": "0.6.3",
+-      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.6.3.tgz",
+-      "integrity": "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==",
++      "version": "0.7.2",
++      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.7.2.tgz",
++      "integrity": "sha512-im9DjEDQ55s9fL4EYzOAv0yMqmMBSZp6G0VvFyTMPKWxiSBHUj9NW/qqLmXUwXrrM7AvqSlTCfvqRb0cM8yYqw==",
+       "license": "MIT",
+       "dependencies": {
+         "safer-buffer": ">= 2.1.2 < 3.0.0"
+       },
+       "engines": {
+         "node": ">=0.10.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/express"
+       }
+     },
+     "node_modules/inflight": {
+@@ -721,6 +758,15 @@
+       "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==",
+       "license": "ISC"
+     },
++    "node_modules/ip-address": {
++      "version": "10.0.1",
++      "resolved": "https://registry.npmjs.org/ip-address/-/ip-address-10.0.1.tgz",
++      "integrity": "sha512-NWv9YLW4PoW2B7xtzaS3NCot75m6nK7Icdv0o3lfMceJVRfSoQwqD4wEH5rLwoKJwUiZ/rfpiVBhnaF0FK4HoA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 12"
++      }
++    },
+     "node_modules/ipaddr.js": {
+       "version": "1.9.1",
+       "resolved": "https://registry.npmjs.org/ipaddr.js/-/ipaddr.js-1.9.1.tgz",
+@@ -737,9 +783,9 @@
+       "license": "MIT"
+     },
+     "node_modules/js-yaml": {
+-      "version": "4.1.0",
+-      "resolved": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.1.0.tgz",
+-      "integrity": "sha512-wpxZs9NoxZaJESJGIZTyDEaYpl0FKSA+FB9aJiyemKhMwkxQg63h4T1KJgUGHpTqPDNRcmmYLugrRjJlBtWvRA==",
++      "version": "4.1.1",
++      "resolved": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.1.1.tgz",
++      "integrity": "sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==",
+       "license": "MIT",
+       "dependencies": {
+         "argparse": "^2.0.1"
+@@ -782,12 +828,12 @@
+       }
+     },
+     "node_modules/jws": {
+-      "version": "3.2.2",
+-      "resolved": "https://registry.npmjs.org/jws/-/jws-3.2.2.tgz",
+-      "integrity": "sha512-YHlZCB6lMTllWDtSPHz/ZXTsi8S00usEV6v1tjq8tOUZzw7DpSDWVXjXDre6ed1w/pd495ODpHZYSdkRTsa0HA==",
++      "version": "3.2.3",
++      "resolved": "https://registry.npmjs.org/jws/-/jws-3.2.3.tgz",
++      "integrity": "sha512-byiJ0FLRdLdSVSReO/U4E7RoEyOCKnEnEPMjq3HxWtvzLsV08/i5RQKsFVNkCldrCaPr2vDNAOMsfs8T/Hze7g==",
+       "license": "MIT",
+       "dependencies": {
+-        "jwa": "^1.4.1",
++        "jwa": "^1.4.2",
+         "safe-buffer": "^5.0.1"
+       }
+     },
+@@ -905,9 +951,9 @@
+       }
+     },
+     "node_modules/minimatch": {
+-      "version": "3.1.2",
+-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.2.tgz",
+-      "integrity": "sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==",
++      "version": "3.1.5",
++      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.5.tgz",
++      "integrity": "sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==",
+       "license": "ISC",
+       "dependencies": {
+         "brace-expansion": "^1.1.7"
+@@ -952,9 +998,9 @@
+       }
+     },
+     "node_modules/nodemailer": {
+-      "version": "7.0.9",
+-      "resolved": "https://registry.npmjs.org/nodemailer/-/nodemailer-7.0.9.tgz",
+-      "integrity": "sha512-9/Qm0qXIByEP8lEV2qOqcAW7bRpL8CR9jcTwk3NBnHJNmP9fIJ86g2fgmIXqHY+nj55ZEMwWqYAT2QTDpRUYiQ==",
++      "version": "7.0.13",
++      "resolved": "https://registry.npmjs.org/nodemailer/-/nodemailer-7.0.13.tgz",
++      "integrity": "sha512-PNDFSJdP+KFgdsG3ZzMXCgquO7I6McjY2vlqILjtJd0hy8wEvtugS9xKRF2NWlPNGxvLCXlTNIae4serI7dinw==",
+       "license": "MIT-0",
+       "engines": {
+         "node": ">=6.0.0"
+@@ -1179,9 +1225,9 @@
+       }
+     },
+     "node_modules/qs": {
+-      "version": "6.14.0",
+-      "resolved": "https://registry.npmjs.org/qs/-/qs-6.14.0.tgz",
+-      "integrity": "sha512-YWWTjgABSKcvs/nWBi9PycY/JiPJqOD4JA6o9Sej2AtvSGarXxKC3OQSk4pAarbdQlKAh5D4FCQkJNkW+GAn3w==",
++      "version": "6.15.0",
++      "resolved": "https://registry.npmjs.org/qs/-/qs-6.15.0.tgz",
++      "integrity": "sha512-mAZTtNCeetKMH+pSjrb76NAM8V9a05I9aBZOHztWy/UqcJdQYNsf59vrRKWnojAT9Y+GbIvoTBC++CPHqpDBhQ==",
+       "license": "BSD-3-Clause",
+       "dependencies": {
+         "side-channel": "^1.1.0"
+@@ -1525,9 +1571,9 @@
+       }
+     },
+     "node_modules/validator": {
+-      "version": "13.15.15",
+-      "resolved": "https://registry.npmjs.org/validator/-/validator-13.15.15.tgz",
+-      "integrity": "sha512-BgWVbCI72aIQy937xbawcs+hrVaN/CZ2UwutgaJ36hGqRrLNM+f5LUT/YPRbo8IV/ASeFzXszezV+y2+rq3l8A==",
++      "version": "13.15.26",
++      "resolved": "https://registry.npmjs.org/validator/-/validator-13.15.26.tgz",
++      "integrity": "sha512-spH26xU080ydGggxRyR1Yhcbgx+j3y5jbNXk/8L+iRvdIEQ4uTRH2Sgf2dokud6Q4oAtsbNvJ1Ft+9xmm6IZcA==",
+       "license": "MIT",
+       "engines": {
+         "node": ">= 0.10"
+diff --git a/package.json b/package.json
+index 126b529..0d3bfa2 100644
+--- a/package.json
++++ b/package.json
+@@ -8,7 +8,9 @@
+   },
+   "scripts": {
+     "dev": "node --watch index.js",
+-    "test": "echo \"Error: no test specified\" && exit 1"
++    "test": "echo \"Error: no test specified\" && exit 1",
++    "audit": "npm audit",
++    "audit:fix": "npm audit fix"
+   },
+   "repository": {
+     "type": "git",
+@@ -27,6 +29,8 @@
+     "cors": "^2.8.5",
+     "dotenv": "^17.2.3",
+     "express": "^5.1.0",
++    "express-rate-limit": "^8.2.1",
++    "helmet": "^8.1.0",
+     "jsonwebtoken": "^9.0.2",
+     "nodemailer": "^7.0.9",
+     "pg": "^8.16.3",
+diff --git a/routes/companyRoutes.js b/routes/companyRoutes.js
+index c1a0df0..3b10b86 100644
+--- a/routes/companyRoutes.js
++++ b/routes/companyRoutes.js
+@@ -1,12 +1,29 @@
+-import express from 'express';
+-import CompanyController from '../controllers/companyController.js';
++import express from "express";
++import CompanyController from "../controllers/companyController.js";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+ const router = express.Router();
+ 
+-router.get('/companies', CompanyController.getAll);
+-router.get('/companies/:id', CompanyController.getById);
+-router.post('/companies', CompanyController.create);
+-router.patch('/companies/:id', CompanyController.update);
+-router.delete('/companies/:id', CompanyController.delete);
++router.get("/companies", verifyToken, CompanyController.getAll);
++router.get("/companies/:id", verifyToken, CompanyController.getById);
++router.post(
++  "/companies",
++  verifyToken,
++  requireRole([1]),
++  CompanyController.create,
++);
++router.patch(
++  "/companies/:id",
++  verifyToken,
++  requireRole([1]),
++  CompanyController.update,
++);
++router.delete(
++  "/companies/:id",
++  verifyToken,
++  requireRole([1]),
++  CompanyController.delete,
++);
+ 
+ export default router;
+diff --git a/routes/criterionRoutes.js b/routes/criterionRoutes.js
+index ee6e692..5e0b0a9 100644
+--- a/routes/criterionRoutes.js
++++ b/routes/criterionRoutes.js
+@@ -1,24 +1,37 @@
+-import express from 'express'
+-import CriterionController from '../controllers/criterionController.js'
++import express from "express";
++import CriterionController from "../controllers/criterionController.js";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+-const router = express.Router()
++const router = express.Router();
+ 
+-router.get('/criterion/', CriterionController.findAllCriterionController)
+ router.get(
+-    '/criterion/:id_criterion',
+-    CriterionController.findCriterionByIdController
+-)
++  "/criterion/",
++  verifyToken,
++  CriterionController.findAllCriterionController,
++);
++router.get(
++  "/criterion/:id_criterion",
++  verifyToken,
++  CriterionController.findCriterionByIdController,
++);
+ router.post(
+-    '/criterion/register',
+-    CriterionController.createCriterionController
+-)
++  "/criterion/register",
++  verifyToken,
++  requireRole([1]),
++  CriterionController.createCriterionController,
++);
+ router.delete(
+-    '/criterion/delete/:id_criterion',
+-    CriterionController.deleteCriterionController
+-)
++  "/criterion/delete/:id_criterion",
++  verifyToken,
++  requireRole([1]),
++  CriterionController.deleteCriterionController,
++);
+ router.put(
+-    '/criterion/update/:id_criterion',
+-    CriterionController.updateCriterionController
+-)
++  "/criterion/update/:id_criterion",
++  verifyToken,
++  requireRole([1]),
++  CriterionController.updateCriterionController,
++);
+ 
+-export default router
++export default router;
+diff --git a/routes/evaluationDetailRoutes.js b/routes/evaluationDetailRoutes.js
+index bd14bbd..31ed215 100644
+--- a/routes/evaluationDetailRoutes.js
++++ b/routes/evaluationDetailRoutes.js
+@@ -1,31 +1,42 @@
+-import EvaluationDetailController from '../controllers/evaluationDetailController.js'
+-import express from 'express'
++import EvaluationDetailController from "../controllers/evaluationDetailController.js";
++import express from "express";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+-const router = express.Router()
++const router = express.Router();
+ 
+ router.get(
+-    '/evaluation-detail',
+-    EvaluationDetailController.findAllEvaluationDetailController
+-)
++  "/evaluation-detail",
++  verifyToken,
++  EvaluationDetailController.findAllEvaluationDetailController,
++);
+ router.get(
+-    '/evaluation-detail/:id_detail',
+-    EvaluationDetailController.findEvaluationDetailByIdController
+-)
++  "/evaluation-detail/:id_detail",
++  verifyToken,
++  EvaluationDetailController.findEvaluationDetailByIdController,
++);
+ router.get(
+-    '/evaluation-detail/evaluation/:id_evaluation',
+-    EvaluationDetailController.findEvaluationDetailByEvaluationIdController
+-)
++  "/evaluation-detail/evaluation/:id_evaluation",
++  verifyToken,
++  EvaluationDetailController.findEvaluationDetailByEvaluationIdController,
++);
+ router.post(
+-    '/evaluation-detail/register',
+-    EvaluationDetailController.createEvaluationDetailController
+-)
++  "/evaluation-detail/register",
++  verifyToken,
++  requireRole([1]),
++  EvaluationDetailController.createEvaluationDetailController,
++);
+ router.delete(
+-    '/evaluation-detail/delete/:id_detail',
+-    EvaluationDetailController.deleteEvaluationDetailController
+-)
++  "/evaluation-detail/delete/:id_detail",
++  verifyToken,
++  requireRole([1]),
++  EvaluationDetailController.deleteEvaluationDetailController,
++);
+ router.put(
+-    '/evaluation-detail/update/:id_detail',
+-    EvaluationDetailController.updateEvaluationDetailController
+-)
++  "/evaluation-detail/update/:id_detail",
++  verifyToken,
++  requireRole([1]),
++  EvaluationDetailController.updateEvaluationDetailController,
++);
+ 
+-export default router
++export default router;
+diff --git a/routes/evaluationTemplatesRoutes.js b/routes/evaluationTemplatesRoutes.js
+index 099f0d5..1138e26 100644
+--- a/routes/evaluationTemplatesRoutes.js
++++ b/routes/evaluationTemplatesRoutes.js
+@@ -1,11 +1,31 @@
+-import express from 'express'
++import express from "express";
+ import templateController from "../controllers/evaluationTemplateController.js";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+-const router = express.Router()
++const router = express.Router();
+ 
+-router.get('/templates', templateController.findTemplateController)
+-router.get('/templates/:id_template', templateController.findTemplateByIdController)
+-router.post('/templates/register', templateController.createTemplateController)
+-router.delete('/templates/delete/:id_template', templateController.deleteTemplateController)
++router.get(
++  "/templates",
++  verifyToken,
++  templateController.findTemplateController,
++);
++router.get(
++  "/templates/:id_template",
++  verifyToken,
++  templateController.findTemplateByIdController,
++);
++router.post(
++  "/templates/register",
++  verifyToken,
++  requireRole([1]),
++  templateController.createTemplateController,
++);
++router.delete(
++  "/templates/delete/:id_template",
++  verifyToken,
++  requireRole([1]),
++  templateController.deleteTemplateController,
++);
+ 
+-export default router
+\ No newline at end of file
++export default router;
+diff --git a/routes/locationRoutes.js b/routes/locationRoutes.js
+index e52aa0b..2809861 100644
+--- a/routes/locationRoutes.js
++++ b/routes/locationRoutes.js
+@@ -1,12 +1,29 @@
+-import express from 'express';
+-import LocationController from '../controllers/locationController.js';
++import express from "express";
++import LocationController from "../controllers/locationController.js";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+ const router = express.Router();
+ 
+-router.get('/locations', LocationController.getAll);
+-router.get('/locations/:id', LocationController.getById);
+-router.post('/locations', LocationController.create);
+-router.patch('/locations/:id', LocationController.update);
+-router.delete('/locations/:id', LocationController.delete);
++router.get("/locations", verifyToken, LocationController.getAll);
++router.get("/locations/:id", verifyToken, LocationController.getById);
++router.post(
++  "/locations",
++  verifyToken,
++  requireRole([1]),
++  LocationController.create,
++);
++router.patch(
++  "/locations/:id",
++  verifyToken,
++  requireRole([1]),
++  LocationController.update,
++);
++router.delete(
++  "/locations/:id",
++  verifyToken,
++  requireRole([1]),
++  LocationController.delete,
++);
+ 
+ export default router;
+diff --git a/routes/pointOfInterestRoutes.js b/routes/pointOfInterestRoutes.js
+index 0764547..bc8f500 100644
+--- a/routes/pointOfInterestRoutes.js
++++ b/routes/pointOfInterestRoutes.js
+@@ -1,12 +1,37 @@
+-import PointOfInterestController from '../controllers/pointOfInterestController.js'
+-import express from 'express'
++import PointOfInterestController from "../controllers/pointOfInterestController.js";
++import express from "express";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+-const router = express.Router()
++const router = express.Router();
+ 
+-router.get('/points-of-interest', PointOfInterestController.findAllController)
+-router.get('/points-of-interest/:id_point', PointOfInterestController.findByIdController)
+-router.post('/points-of-interest/register', PointOfInterestController.createController)
+-router.delete('/points-of-interest/delete/:id_point', PointOfInterestController.deleteController)
+-router.put('/points-of-interest/update/:id_point', PointOfInterestController.updateController)
++router.get(
++  "/points-of-interest",
++  verifyToken,
++  PointOfInterestController.findAllController,
++);
++router.get(
++  "/points-of-interest/:id_point",
++  verifyToken,
++  PointOfInterestController.findByIdController,
++);
++router.post(
++  "/points-of-interest/register",
++  verifyToken,
++  requireRole([1]),
++  PointOfInterestController.createController,
++);
++router.delete(
++  "/points-of-interest/delete/:id_point",
++  verifyToken,
++  requireRole([1]),
++  PointOfInterestController.deleteController,
++);
++router.put(
++  "/points-of-interest/update/:id_point",
++  verifyToken,
++  requireRole([1]),
++  PointOfInterestController.updateController,
++);
+ 
+-export default router
+\ No newline at end of file
++export default router;
+diff --git a/routes/serviceCertificationRoutes.js b/routes/serviceCertificationRoutes.js
+index 7755c62..98b8315 100644
+--- a/routes/serviceCertificationRoutes.js
++++ b/routes/serviceCertificationRoutes.js
+@@ -1,16 +1,61 @@
+-import ServiceCertificationController from '../controllers/serviceCertificationController.js'
+-import express from 'express'
++import express from "express";
++import ServiceCertificationController from "../controllers/serviceCertificationController.js";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+-const router = express.Router()
++const router = express.Router();
+ 
+-router.get('/service-certifications', ServiceCertificationController.findAllCertificationsController)
+-router.get('/service-certifications/:id_certification', ServiceCertificationController.findCertificationByIdController)
+-router.get('/service-certifications/service/:id_service', ServiceCertificationController.findCertificationsByServiceIdController)
+-router.get('/service-certifications/type/:certification_type', ServiceCertificationController.findCertificationsByTypeController)
+-router.get('/service-certifications/status/:status', ServiceCertificationController.findCertificationsByStatusController)
+-router.post('/service-certifications/register', ServiceCertificationController.createCertificationController)
+-router.delete('/service-certifications/delete/:id_certification', ServiceCertificationController.deleteCertificationController)
+-router.put('/service-certifications/update/:id_certification', ServiceCertificationController.updateCertificationController)
+-router.put('/service-certifications/status/:id_certification', ServiceCertificationController.updateStatusController)
++// Lectura pública (requiere autenticación)
++router.get(
++  "/service-certifications",
++  verifyToken,
++  ServiceCertificationController.findAllCertificationsController,
++);
++router.get(
++  "/service-certifications/:id_certification",
++  verifyToken,
++  ServiceCertificationController.findCertificationByIdController,
++);
++router.get(
++  "/service-certifications/service/:id_service",
++  verifyToken,
++  ServiceCertificationController.findCertificationsByServiceIdController,
++);
++router.get(
++  "/service-certifications/type/:certification_type",
++  verifyToken,
++  ServiceCertificationController.findCertificationsByTypeController,
++);
++router.get(
++  "/service-certifications/status/:status",
++  verifyToken,
++  ServiceCertificationController.findCertificationsByStatusController,
++);
+ 
+-export default router
+\ No newline at end of file
++// Escritura: solo admin
++router.post(
++  "/service-certifications/register",
++  verifyToken,
++  requireRole([1]),
++  ServiceCertificationController.createCertificationController,
++);
++router.delete(
++  "/service-certifications/delete/:id_certification",
++  verifyToken,
++  requireRole([1]),
++  ServiceCertificationController.deleteCertificationController,
++);
++router.put(
++  "/service-certifications/update/:id_certification",
++  verifyToken,
++  requireRole([1]),
++  ServiceCertificationController.updateCertificationController,
++);
++router.put(
++  "/service-certifications/status/:id_certification",
++  verifyToken,
++  requireRole([1]),
++  ServiceCertificationController.updateStatusController,
++);
++
++export default router;
+diff --git a/routes/serviceEvaluationRoutes.js b/routes/serviceEvaluationRoutes.js
+index 7195c38..26d4cc3 100644
+--- a/routes/serviceEvaluationRoutes.js
++++ b/routes/serviceEvaluationRoutes.js
+@@ -1,14 +1,43 @@
+-import ServiceEvaluationController from '../controllers/serviceEvaluationController.js'
+-import express from 'express'
++import ServiceEvaluationController from "../controllers/serviceEvaluationController.js";
++import express from "express";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+-const router = express.Router()
++const router = express.Router();
+ 
+-router.get('/service-evaluation', ServiceEvaluationController.findAllServiceEvaluationController)
+-router.get('/service-evaluation/:id_evaluation', ServiceEvaluationController.findServiceEvaluationByIdController)
+-router.post('/service-evaluation/register', ServiceEvaluationController.createServiceEvaluationController)
+-router.delete('/service-evaluation/delete/:id_evaluation', ServiceEvaluationController.deleteServiceEvaluationController)
+-router.put('/service-evaluation/update/:id_evaluation', ServiceEvaluationController.updateServiceEvaluationController)
+-router.put('/service-evaluation/status/:id_evaluation', ServiceEvaluationController.updateStatusController)
+-
+-export default router
++router.get(
++  "/service-evaluation",
++  verifyToken,
++  ServiceEvaluationController.findAllServiceEvaluationController,
++);
++router.get(
++  "/service-evaluation/:id_evaluation",
++  verifyToken,
++  ServiceEvaluationController.findServiceEvaluationByIdController,
++);
++router.post(
++  "/service-evaluation/register",
++  verifyToken,
++  requireRole([1]),
++  ServiceEvaluationController.createServiceEvaluationController,
++);
++router.delete(
++  "/service-evaluation/delete/:id_evaluation",
++  verifyToken,
++  requireRole([1]),
++  ServiceEvaluationController.deleteServiceEvaluationController,
++);
++router.put(
++  "/service-evaluation/update/:id_evaluation",
++  verifyToken,
++  requireRole([1]),
++  ServiceEvaluationController.updateServiceEvaluationController,
++);
++router.put(
++  "/service-evaluation/status/:id_evaluation",
++  verifyToken,
++  requireRole([1]),
++  ServiceEvaluationController.updateStatusController,
++);
+ 
++export default router;
+diff --git a/routes/tourismEmploymentRoutes.js b/routes/tourismEmploymentRoutes.js
+index c7f6470..3b31194 100644
+--- a/routes/tourismEmploymentRoutes.js
++++ b/routes/tourismEmploymentRoutes.js
+@@ -1,16 +1,25 @@
+-import TourismEmploymentController from '../controllers/tourismEmploymentController.js'
+-import express from 'express'
++import TourismEmploymentController from "../controllers/tourismEmploymentController.js";
++import express from "express";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+-const router = express.Router()
++const router = express.Router();
+ 
+-router.get('/tourism-employment', TourismEmploymentController.findAllController)
+ router.get(
+-    '/tourism-employment/:id_employment',
+-    TourismEmploymentController.findByIdController
+-)
++  "/tourism-employment",
++  verifyToken,
++  TourismEmploymentController.findAllController,
++);
++router.get(
++  "/tourism-employment/:id_employment",
++  verifyToken,
++  TourismEmploymentController.findByIdController,
++);
+ router.post(
+-    '/tourism-employment/register',
+-    TourismEmploymentController.createController
+-)
++  "/tourism-employment/register",
++  verifyToken,
++  requireRole([1]),
++  TourismEmploymentController.createController,
++);
+ 
+-export default router
++export default router;
+diff --git a/routes/tourismExpenditureRoutes.js b/routes/tourismExpenditureRoutes.js
+index 7d3dabc..751797a 100644
+--- a/routes/tourismExpenditureRoutes.js
++++ b/routes/tourismExpenditureRoutes.js
+@@ -1,19 +1,25 @@
+-import TourismExpenditureController from '../controllers/tourismExpenditureController.js'
+-import express from 'express'
++import TourismExpenditureController from "../controllers/tourismExpenditureController.js";
++import express from "express";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+-const router = express.Router()
++const router = express.Router();
+ 
+ router.get(
+-    '/tourism-expenditures',
+-    TourismExpenditureController.findAllController
+-)
++  "/tourism-expenditures",
++  verifyToken,
++  TourismExpenditureController.findAllController,
++);
+ router.get(
+-    '/tourism-expenditures/:id_expenditure',
+-    TourismExpenditureController.findByIdController
+-)
++  "/tourism-expenditures/:id_expenditure",
++  verifyToken,
++  TourismExpenditureController.findByIdController,
++);
+ router.post(
+-    '/tourism-expenditures/register',
+-    TourismExpenditureController.createController
+-)
++  "/tourism-expenditures/register",
++  verifyToken,
++  requireRole([1]),
++  TourismExpenditureController.createController,
++);
+ 
+-export default router
++export default router;
+diff --git a/routes/tourismInputsRoutes.js b/routes/tourismInputsRoutes.js
+index 6a7c7da..9d39b06 100644
+--- a/routes/tourismInputsRoutes.js
++++ b/routes/tourismInputsRoutes.js
+@@ -1,10 +1,25 @@
+-import TourismInputsController from '../controllers/tourismInputsController.js'
+-import express from 'express'
++import TourismInputsController from "../controllers/tourismInputsController.js";
++import express from "express";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+-const router = express.Router()
++const router = express.Router();
+ 
+-router.get('/tourism-inputs', TourismInputsController.findAllController)
+-router.get('/tourism-inputs/:id_input', TourismInputsController.findByIdController)
+-router.post('/tourism-inputs/register', TourismInputsController.createController)
++router.get(
++  "/tourism-inputs",
++  verifyToken,
++  TourismInputsController.findAllController,
++);
++router.get(
++  "/tourism-inputs/:id_input",
++  verifyToken,
++  TourismInputsController.findByIdController,
++);
++router.post(
++  "/tourism-inputs/register",
++  verifyToken,
++  requireRole([1]),
++  TourismInputsController.createController,
++);
+ 
+-export default router
+\ No newline at end of file
++export default router;
+diff --git a/routes/touristActivitiesRoutes.js b/routes/touristActivitiesRoutes.js
+index dac6352..4ebb3bb 100644
+--- a/routes/touristActivitiesRoutes.js
++++ b/routes/touristActivitiesRoutes.js
+@@ -1,11 +1,31 @@
+-import express from 'express'
+-import TouristActivitiesController from '../controllers/touristActivitiesController.js'
++import express from "express";
++import TouristActivitiesController from "../controllers/touristActivitiesController.js";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+-const router = express.Router()
++const router = express.Router();
+ 
+-router.get('/tourist_activities', TouristActivitiesController.findAllTouristActivitiesController)
+-router.get('/tourist_activities/:id_activity', TouristActivitiesController.findTouristActivitiesByIdController)
+-router.post('/tourist_activities/register', TouristActivitiesController.createTouristActivitiesController)  
+-router.delete('/tourist_activities/delete/:id_activity', TouristActivitiesController.deleteTouristActivitiesController)
++router.get(
++  "/tourist_activities",
++  verifyToken,
++  TouristActivitiesController.findAllTouristActivitiesController,
++);
++router.get(
++  "/tourist_activities/:id_activity",
++  verifyToken,
++  TouristActivitiesController.findTouristActivitiesByIdController,
++);
++router.post(
++  "/tourist_activities/register",
++  verifyToken,
++  requireRole([1]),
++  TouristActivitiesController.createTouristActivitiesController,
++);
++router.delete(
++  "/tourist_activities/delete/:id_activity",
++  verifyToken,
++  requireRole([1]),
++  TouristActivitiesController.deleteTouristActivitiesController,
++);
+ 
+-export default router
+\ No newline at end of file
++export default router;
+diff --git a/routes/touristServicesRoutes.js b/routes/touristServicesRoutes.js
+index 66ff2f8..8fdc270 100644
+--- a/routes/touristServicesRoutes.js
++++ b/routes/touristServicesRoutes.js
+@@ -1,12 +1,33 @@
+-import express from 'express';
+-import TouristServicesController from '../controllers/touristServicesController.js';
++import express from "express";
++import TouristServicesController from "../controllers/touristServicesController.js";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+ const router = express.Router();
+ 
+-router.get('/tourist-services', TouristServicesController.getAll);
+-router.get('/tourist-services/:id', TouristServicesController.getById);
+-router.post('/tourist-services', TouristServicesController.create);
+-router.patch('/tourist-services/:id', TouristServicesController.update);
+-router.delete('/tourist-services/:id', TouristServicesController.delete);
++router.get("/tourist-services", verifyToken, TouristServicesController.getAll);
++router.get(
++  "/tourist-services/:id",
++  verifyToken,
++  TouristServicesController.getById,
++);
++router.post(
++  "/tourist-services",
++  verifyToken,
++  requireRole([1]),
++  TouristServicesController.create,
++);
++router.patch(
++  "/tourist-services/:id",
++  verifyToken,
++  requireRole([1]),
++  TouristServicesController.update,
++);
++router.delete(
++  "/tourist-services/:id",
++  verifyToken,
++  requireRole([1]),
++  TouristServicesController.delete,
++);
+ 
+ export default router;
+diff --git a/routes/travelerProfileRoutes.js b/routes/travelerProfileRoutes.js
+index 569b9a7..1e27b0a 100644
+--- a/routes/travelerProfileRoutes.js
++++ b/routes/travelerProfileRoutes.js
+@@ -1,12 +1,41 @@
+-import express from 'express'
+-import travelerProfileController from '../controllers/travelerProfileController.js'
++import express from "express";
++import travelerProfileController from "../controllers/travelerProfileController.js";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
+ 
+-const router = express.Router()
++const router = express.Router();
+ 
+-router.get('/profiles', travelerProfileController.findAllTravelerProfileController)
+-router.get('/profiles/:id_profile', travelerProfileController.findTravelerProfileByIdController)
+-router.post('/profiles/register', travelerProfileController.createTravelerProfileController)
+-router.put('/profiles/update/:id_profile', travelerProfileController.updateTravelerProfileController)
+-router.delete('/profiles/delete/:id_profile', travelerProfileController.deleteTravelerProfileController)
++// Listar todos los perfiles: solo admin
++router.get(
++  "/profiles",
++  verifyToken,
++  requireRole([1]),
++  travelerProfileController.findAllTravelerProfileController,
++);
++// Ver perfil individual: autenticado (ownership se puede añadir si el modelo lo expone por user_id)
++router.get(
++  "/profiles/:id_profile",
++  verifyToken,
++  travelerProfileController.findTravelerProfileByIdController,
++);
++// Crear perfil: usuario autenticado
++router.post(
++  "/profiles/register",
++  verifyToken,
++  travelerProfileController.createTravelerProfileController,
++);
++// Actualizar perfil: usuario autenticado
++router.put(
++  "/profiles/update/:id_profile",
++  verifyToken,
++  travelerProfileController.updateTravelerProfileController,
++);
++// Eliminar: solo admin
++router.delete(
++  "/profiles/delete/:id_profile",
++  verifyToken,
++  requireRole([1]),
++  travelerProfileController.deleteTravelerProfileController,
++);
+ 
+-export default router
+\ No newline at end of file
++export default router;
+diff --git a/routes/userRoutes.js b/routes/userRoutes.js
+index e8b6d85..3449fac 100644
+--- a/routes/userRoutes.js
++++ b/routes/userRoutes.js
+@@ -1,18 +1,40 @@
+-import express from 'express';
+-import UserController from '../controllers/userController.js';
++import express from "express";
++import UserController from "../controllers/userController.js";
++import { verifyToken } from "../middleware/authMiddleware.js";
++import { requireRole } from "../middleware/rbacMiddleware.js";
++import { verifyOwnership } from "../middleware/ownershipMiddleware.js";
+ 
+ const router = express.Router();
+ 
+-router.get('/users', UserController.getAll);
++// RBAC: Solo admin puede listar todos los usuarios
++router.get("/users", verifyToken, requireRole([1]), UserController.getAll);
+ 
+-router.get('/users/:id', UserController.getById);
++// Ownership: solo el propio usuario o admin puede ver su perfil
++router.get("/users/:id", verifyToken, verifyOwnership, UserController.getById);
+ 
+-router.get('/users/email/:email', UserController.findByEmail);
++// RBAC: Solo admin puede buscar usuarios por email
++router.get(
++  "/users/email/:email",
++  verifyToken,
++  requireRole([1]),
++  UserController.findByEmail,
++);
+ 
+-router.post('/users/', UserController.create);
++// Rutas públicas
++router.post("/users/register", UserController.register);
+ 
+-router.delete('/users/:id', UserController.delete);
++// RBAC: Solo admin puede crear usuarios directamente
++router.post("/users/", verifyToken, requireRole([1]), UserController.create);
+ 
+-router.patch('/users/:id', UserController.patch);
++// RBAC: Solo admin puede eliminar usuarios
++router.delete(
++  "/users/:id",
++  verifyToken,
++  requireRole([1]),
++  UserController.delete,
++);
+ 
+-export default router;
+\ No newline at end of file
++// Ownership: solo el propio usuario o admin puede actualizar su perfil
++router.patch("/users/:id", verifyToken, verifyOwnership, UserController.patch);
++
++export default router;
+diff --git a/services/userService.js b/services/userService.js
+index 5cb7788..54029ba 100644
+--- a/services/userService.js
++++ b/services/userService.js
+@@ -1,157 +1,176 @@
+-import pool from '../config/db.js';
+-import bcrypt from 'bcrypt';
+-import jwt from 'jsonwebtoken';
+-import { findByEmail } from '../validators/userValidators.js';
++import pool from "../config/db.js";
++import bcrypt from "bcrypt";
++import jwt from "jsonwebtoken";
++import { findByEmail } from "../validators/userValidators.js";
+ 
+ const SALT_ROUNDS = 10;
+ 
+ export class UserService {
+-    static async generateResetToken(email) {
+-        const user = await findByEmail(email);
+-        if (!user) throw new Error('Usuario no encontrado');
++  static async generateResetToken(email) {
++    const user = await findByEmail(email);
++    if (!user) throw new Error("Usuario no encontrado");
+ 
+-        const token = String(Math.floor(100000 + Math.random() * 900000));
+-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
++    const token = String(Math.floor(100000 + Math.random() * 900000));
++    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+ 
+-        await pool.query(
+-            `INSERT INTO password_reset_tokens (user_id, token, expires_at)
++    await pool.query(
++      `INSERT INTO password_reset_tokens (user_id, token, expires_at)
+          VALUES ($1, $2, $3)`,
+-            [user.user_id, token, expiresAt]
+-        );
++      [user.user_id, token, expiresAt],
++    );
+ 
+-        return token;
+-    }
++    return token;
++  }
+ 
+-    static async resetPassword(email, token, newPassword) {
+-        const user = await findByEmail(email);
+-        if (!user) throw new Error('Usuario no encontrado');
++  static async resetPassword(email, token, newPassword) {
++    const user = await findByEmail(email);
++    if (!user) throw new Error("Usuario no encontrado");
+ 
+-        const tokenResult = await pool.query(
+-            `SELECT id FROM password_reset_tokens
++    const tokenResult = await pool.query(
++      `SELECT id FROM password_reset_tokens
+          WHERE user_id = $1 
+          AND token = $2 
+          AND used = FALSE 
+          AND expires_at > NOW()`,
+-            [user.user_id, token]
+-        );
+-
+-        if (tokenResult.rowCount === 0) {
+-            throw new Error('Código inválido o expirado');
+-        }
+-
+-        const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+-
+-        await pool.query('BEGIN');
+-
+-        await pool.query(`UPDATE "user" SET password = $1 WHERE user_id = $2`, [
+-            hashedPassword,
+-            user.user_id,
+-        ]);
+-
+-        await pool.query(`UPDATE password_reset_tokens SET used = TRUE WHERE id = $1`, [
+-            tokenResult.rows[0].id,
+-        ]);
++      [user.user_id, token],
++    );
+ 
+-        await pool.query('COMMIT');
++    if (tokenResult.rowCount === 0) {
++      throw new Error("Código inválido o expirado");
+     }
+ 
+-    
+-    static async login(email, password) {
+-        try {
+-            const user = await findByEmail(email);
+-            if (!user) {
+-                return { status: 400, message: 'Usuario no encontrado' };
+-            }
+-
+-            const isMatch = await bcrypt.compare(password, user.password);
+-            if (!isMatch) {
+-                return { status: 400, message: 'Contraseña incorrecta' };
+-            }
+-
+-            const verificationCode = String(Math.floor(100000 + Math.random() * 900000));
+-            const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+-
+-            await pool.query(
+-                `INSERT INTO login_tokens (user_id, token, expires_at, used)
++    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
++
++    await pool.query("BEGIN");
++
++    await pool.query(`UPDATE "user" SET password = $1 WHERE user_id = $2`, [
++      hashedPassword,
++      user.user_id,
++    ]);
++
++    await pool.query(
++      `UPDATE password_reset_tokens SET used = TRUE WHERE id = $1`,
++      [tokenResult.rows[0].id],
++    );
++
++    await pool.query("COMMIT");
++  }
++
++  /**
++   * Login paso 1: valida credenciales, genera OTP y lo almacena en DB.
++   * El controlador es responsable de enviar el OTP por correo y registrar el evento.
++   *
++   * OWASP A07 — Autenticación multifactor (MFA): el verificationCode devuelto
++   * es enviado al correo en serviceController.loginController (línea 56).
++   * Librería usada aquí: bcrypt (comparación), pg (INSERT login_tokens $1,$2,$3,$4)
++   */
++  static async login(email, password) {
++    try {
++      const user = await findByEmail(email);
++      if (!user) {
++        return { status: 400, message: "Usuario no encontrado" };
++      }
++
++      const isMatch = await bcrypt.compare(password, user.password);
++      if (!isMatch) {
++        return { status: 400, message: "Contraseña incorrecta" };
++      }
++
++      const verificationCode = String(
++        Math.floor(100000 + Math.random() * 900000),
++      );
++      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
++
++      await pool.query(
++        `INSERT INTO login_tokens (user_id, token, expires_at, used)
+                  VALUES ($1, $2, $3, $4)`,
+-                [user.user_id, verificationCode, expiresAt, false]
+-            );
+-
+-            return {
+-                status: 200,
+-                message: 'Código de verificación generado',
+-                data: {
+-                    userId: user.user_id,
+-                    email: user.email,
+-                    verificationCode: verificationCode,
+-                    requiresVerification: true,
+-                },
+-            };
+-        } catch (error) {
+-            console.error('Error en login:', error);
+-            return { status: 500, message: 'Error del servidor', error: error.message };
+-        }
++        [user.user_id, verificationCode, expiresAt, false],
++      );
++
++      return {
++        status: 200,
++        message: "Código de verificación generado",
++        data: {
++          userId: user.user_id,
++          email: user.email,
++          verificationCode: verificationCode,
++          requiresVerification: true,
++        },
++      };
++    } catch (error) {
++      console.error("Error en login:", error);
++      return {
++        status: 500,
++        message: "Error del servidor",
++        error: error.message,
++      };
+     }
+-
+-    static async verifyTwoStepVerificationCode(email, verificationCode) {
+-        try {
+-            const user = await findByEmail(email);
+-            if (!user) {
+-                return { status: 400, message: 'Usuario no encontrado' };
+-            }
+-
+-            const result = await pool.query(
+-                `SELECT * FROM login_tokens 
++  }
++
++  /**
++   * Login paso 2: valida el OTP y emite el JWT.
++   * OWASP A07 — MFA: verifica $1 (user_id) y $2 (token) con consulta parametrizada.
++   * Librería: jsonwebtoken (jwt.sign), pg (consulta parametrizada)
++   */
++  static async verifyTwoStepVerificationCode(email, verificationCode) {
++    try {
++      const user = await findByEmail(email);
++      if (!user) {
++        return { status: 400, message: "Usuario no encontrado" };
++      }
++
++      const result = await pool.query(
++        `SELECT * FROM login_tokens 
+                  WHERE user_id = $1 AND token = $2`,
+-                [user.user_id, verificationCode]
+-            );
+-
+-            if (result.rows.length === 0) {
+-                return { status: 400, message: 'Código inválido' };
+-            }
+-
+-            const tokenRecord = result.rows[0];
+-            const now = new Date();
+-            const expiresAt = new Date(tokenRecord.expires_at);
+-
+-            if (tokenRecord.used) {
+-                return { status: 400, message: 'Código ya fue usado' };
+-            }
+-
+-            if (now > expiresAt) {
+-                return { status: 400, message: 'Código expirado' };
+-            }
+-
+-            await pool.query(
+-                `UPDATE login_tokens SET used = TRUE WHERE user_id = $1 AND token = $2 AND used = FALSE;`,
+-                [user.user_id, verificationCode]
+-            );
+-
+-            const jwtToken = jwt.sign(
+-                {
+-                    id: user.user_id,
+-                    email: user.email,
+-                    role_id: user.role_id,
+-                },
+-                process.env.JWT_SECRET,
+-                { expiresIn: '24h' }
+-            );
+-
+-            return {
+-                status: 200,
+-                message: 'Login exitoso',
+-                data: {
+-                    token: jwtToken,
+-                    user: {
+-                        id: user.user_id,
+-                        name: user.name,
+-                        email: user.email,
+-                        role_id: user.role_id,
+-                    },
+-                },
+-            };
+-        } catch (error) {
+-            return { status: 500, message: 'Error del servidor' };
+-        }
++        [user.user_id, verificationCode],
++      );
++
++      if (result.rows.length === 0) {
++        return { status: 400, message: "Código inválido" };
++      }
++
++      const tokenRecord = result.rows[0];
++      const now = new Date();
++      const expiresAt = new Date(tokenRecord.expires_at);
++
++      if (tokenRecord.used) {
++        return { status: 400, message: "Código ya fue usado" };
++      }
++
++      if (now > expiresAt) {
++        return { status: 400, message: "Código expirado" };
++      }
++
++      await pool.query(
++        `UPDATE login_tokens SET used = TRUE WHERE user_id = $1 AND token = $2 AND used = FALSE;`,
++        [user.user_id, verificationCode],
++      );
++
++      const jwtToken = jwt.sign(
++        {
++          id: user.user_id,
++          email: user.email,
++          role_id: user.role_id,
++        },
++        process.env.JWT_SECRET,
++        { expiresIn: "24h" },
++      );
++
++      return {
++        status: 200,
++        message: "Login exitoso",
++        data: {
++          token: jwtToken,
++          user: {
++            id: user.user_id,
++            name: user.name,
++            email: user.email,
++            role_id: user.role_id,
++          },
++        },
++      };
++    } catch (error) {
++      return { status: 500, message: "Error del servidor" };
+     }
++  }
+ }

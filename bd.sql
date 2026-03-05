@@ -249,4 +249,23 @@ CREATE TABLE password_reset_tokens (
   FOREIGN KEY (user_id) REFERENCES "user"(user_id)
 );
 
+-- ============================================
+-- A5: REGISTRO DE SEGURIDAD Y AUDITORÍA
+-- Tabla para observabilidad de eventos de auth
+-- Usada por: services/monitoringService.js
+-- ============================================
+CREATE TABLE security_events (
+  id SERIAL PRIMARY KEY,
+  event_type VARCHAR(100) NOT NULL,  -- LOGIN_ATTEMPT, LOGIN_FAILED, MFA_FAILED, etc.
+  user_email VARCHAR(100),
+  ip_address VARCHAR(50),
+  severity VARCHAR(20) DEFAULT 'INFO', -- INFO, WARNING, ERROR
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índice para consultas de Grafana ordenadas por tiempo
+CREATE INDEX idx_security_events_created_at ON security_events(created_at DESC);
+-- Índice para filtrar por tipo de evento
+CREATE INDEX idx_security_events_type ON security_events(event_type);
+
 COMMIT;

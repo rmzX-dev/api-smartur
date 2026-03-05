@@ -1,4 +1,23 @@
+# API SMARTUR
+
+## 🔒 Seguridad
+
+Este proyecto implementa mitigaciones para las vulnerabilidades **OWASP Top 10** más críticas:
+
+| # | Vulnerabilidad | Control |
+|---|---|---|
+| A01 | Control de Acceso Roto | RBAC + validación de propiedad (JWT middleware) |
+| A02 | Fallas Criptográficas | MFA con OTP por correo + bcrypt |
+| A03 | Inyección SQL | Consultas parametrizadas con `pg` ($1, $2) |
+| A04 | Diseño Inseguro / Hardening | `helmet` + `express-rate-limit` + `npm audit` |
+| A09 | Registro y Monitoreo | `security_events` en PostgreSQL + Grafana |
+
+📄 **[Ver documentación completa de seguridad → SECURITY.md](./SECURITY.md)**
+
+---
+
 ## ⚡ Instalación y Configuración
+
 
 1. **Clona el repositorio**
 ```zsh
@@ -24,6 +43,7 @@ DB_PASSWORD={tu contraseña de postgres}
 DB_NAME={base de datos}
 DB_PORT=5432
 JWT_SECRET={contraseña secreta}
+FRONTEND_URL=http://localhost:5173,http://localhost:3000
 
 EMAIL_USER=smarturutcv@gmail.com
 EMAIL_PASS=lihichglnpzlhddg
@@ -45,8 +65,15 @@ psql -U {tu_usuario} -d {nombre_base_datos} -f bd.sql
    - Abre pgAdmin y conéctate a tu servidor
    - Haz clic derecho sobre la base de datos creada y selecciona "Query Tool"
    - Abre y ejecuta el archivo `bd.sql`
+   - Para monitoreo de seguridad, ejecuta también: `database/setup_logs.sql` en la misma base de datos.
 
-6. **Inicia el servidor:**
+6. **Opcional - Grafana (monitoreo de eventos de seguridad):**
+   - Levanta Grafana: `docker compose up -d grafana`
+   - Accede a http://localhost:3001 (usuario/contraseña por defecto: admin/admin)
+   - Añade PostgreSQL como Data Source con las credenciales de tu `.env` (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT)
+   - Crea un panel Time Series con la query: `SELECT event_time AS "time", count(*) AS "Intentos Fallidos" FROM security_events WHERE event_type = 'LOGIN_FAIL' GROUP BY 1 ORDER BY 1`
+
+7. **Inicia el servidor:**
 ```zsh
 node index.js
 ```

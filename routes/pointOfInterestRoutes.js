@@ -1,12 +1,37 @@
-import PointOfInterestController from '../controllers/pointOfInterestController.js'
-import express from 'express'
+import PointOfInterestController from "../controllers/pointOfInterestController.js";
+import express from "express";
+import { verifyToken } from "../middleware/authMiddleware.js";
+import { requireRole } from "../middleware/rbacMiddleware.js";
 
-const router = express.Router()
+const router = express.Router();
 
-router.get('/points-of-interest', PointOfInterestController.findAllController)
-router.get('/points-of-interest/:id_point', PointOfInterestController.findByIdController)
-router.post('/points-of-interest/register', PointOfInterestController.createController)
-router.delete('/points-of-interest/delete/:id_point', PointOfInterestController.deleteController)
-router.put('/points-of-interest/update/:id_point', PointOfInterestController.updateController)
+router.get(
+  "/points-of-interest",
+  verifyToken,
+  PointOfInterestController.findAllController,
+);
+router.get(
+  "/points-of-interest/:id_point",
+  verifyToken,
+  PointOfInterestController.findByIdController,
+);
+router.post(
+  "/points-of-interest/register",
+  verifyToken,
+  requireRole([1]),
+  PointOfInterestController.createController,
+);
+router.delete(
+  "/points-of-interest/delete/:id_point",
+  verifyToken,
+  requireRole([1]),
+  PointOfInterestController.deleteController,
+);
+router.put(
+  "/points-of-interest/update/:id_point",
+  verifyToken,
+  requireRole([1]),
+  PointOfInterestController.updateController,
+);
 
-export default router
+export default router;
