@@ -73,7 +73,7 @@ export class UserService {
 
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
-        return { status: 400, message: "Contraseña incorrecta" };
+        return { status: 400, message: "Credenciales incorrectas" };
       }
 
       const verificationCode = String(

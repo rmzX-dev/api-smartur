@@ -1,3 +1,6 @@
 .env
 /node_modules
 pnpm-lock.yaml
+.gitignore
+README_EVALUATION.md
+SECURITY.md
