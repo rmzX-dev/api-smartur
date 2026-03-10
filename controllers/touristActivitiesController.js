@@ -1,26 +1,37 @@
-import TouristActivitiesModel from '../models/touristActivitiesModel.js'
+import TouristActivitiesModel from '../models/touristActivitiesModel.js';
 
 export class TouristActivitiesController {
     static async findAllTouristActivitiesController(req, res) {
         try {
-            const touristActivities = await TouristActivitiesModel.findAllTouristActivities()
+            const page = parseInt(req.query.page) || 1;
+            const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+            const id_company = req.query.id_company ? parseInt(req.query.id_company) : null;
+
+            const result = await TouristActivitiesModel.findAllTouristActivities(
+                page,
+                limit,
+                id_company
+            );
+
             res.json({
                 message: 'Actividades turísticas obtenidas exitosamente',
-                count: touristActivities.length,
-                touristActivities: touristActivities.map((touristActivities) => ({
-                    id: touristActivities.id_activity,
-                    company: touristActivities.id_company,
-                    production_value: touristActivities.production_value,
-                    environmental_impact: touristActivities.environmental_impact,
-                    social_impact: touristActivities.social_impact,
+                totalRecords: result.totalRecords,
+                totalPages: result.totalPages,
+                currentPage: result.currentPage,
+                touristActivities: result.activities.map((activity) => ({
+                    id: activity.id_activity,
+                    company: activity.id_company,
+                    production_value: activity.production_value,
+                    environmental_impact: activity.environmental_impact,
+                    social_impact: activity.social_impact,
                 })),
-            })
+            });
         } catch (error) {
-            console.error('Error fetching tourist activities:', error)
+            console.error('Error fetching tourist activities:', error);
             res.status(500).json({
                 message: 'Error interno del servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
@@ -28,11 +39,9 @@ export class TouristActivitiesController {
         try {
             const touristActivitiesData = await TouristActivitiesModel.findTouristActivitiesById(
                 req.params.id_activity
-            )
+            );
             if (!touristActivitiesData) {
-                return res
-                    .status(404)
-                    .json({ message: 'Actividad turística no encontrada' })
+                return res.status(404).json({ message: 'Actividad turística no encontrada' });
             }
             res.status(200).json({
                 message: 'Actividad turística obtenida exitosamente',
@@ -43,19 +52,19 @@ export class TouristActivitiesController {
                     environmental_impact: touristActivitiesData.environmental_impact,
                     social_impact: touristActivitiesData.social_impact,
                 },
-            })
+            });
         } catch (error) {
-            console.error('Error fetching tourist activity:', error)
+            console.error('Error fetching tourist activity:', error);
             res.status(500).json({
                 message: 'Error interno del servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async createTouristActivitiesController(req, res) {
         try {
-            const result = await TouristActivitiesModel.createTouristActivities(req.body)
+            const result = await TouristActivitiesModel.createTouristActivities(req.body);
             res.status(201).json({
                 message: 'Actividad turística creada exitosamente',
                 touristActivities: {
@@ -65,13 +74,13 @@ export class TouristActivitiesController {
                     environmental_impact: result.environmental_impact,
                     social_impact: result.social_impact,
                 },
-            })
+            });
         } catch (error) {
-            console.error('Error creating tourist activity:', error)
+            console.error('Error creating tourist activity:', error);
             res.status(500).json({
                 message: 'Error interno del servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
@@ -80,11 +89,9 @@ export class TouristActivitiesController {
             const touristActivities = await TouristActivitiesModel.updateTouristActivities(
                 req.params.id_activity,
                 req.body
-            )
+            );
             if (!touristActivities) {
-                return res
-                    .status(404)
-                    .json({ message: 'Actividad turística no encontrada' })
+                return res.status(404).json({ message: 'Actividad turística no encontrada' });
             }
             res.json({
                 message: 'Actividad turística actualizada exitosamente',
@@ -95,13 +102,13 @@ export class TouristActivitiesController {
                     environmental_impact: touristActivities.environmental_impact,
                     social_impact: touristActivities.social_impact,
                 },
-            })
+            });
         } catch (error) {
-            console.error('Error updating tourist activity:', error)
+            console.error('Error updating tourist activity:', error);
             res.status(500).json({
                 message: 'Error interno del servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
@@ -109,12 +116,10 @@ export class TouristActivitiesController {
         try {
             const touristActivities = await TouristActivitiesModel.deleteTouristActivities(
                 req.params.id_activity
-            )
+            );
 
             if (!touristActivities) {
-                return res
-                    .status(404)
-                    .json({ message: 'Actividad turística no encontrada' })
+                return res.status(404).json({ message: 'Actividad turística no encontrada' });
             }
 
             res.json({
@@ -126,15 +131,15 @@ export class TouristActivitiesController {
                     environmental_impact: touristActivities.environmental_impact,
                     social_impact: touristActivities.social_impact,
                 },
-            })
+            });
         } catch (error) {
             if (error.message === 'Actividad turística no encontrada') {
-                return res.status(404).json({ message: error.message })
+                return res.status(404).json({ message: error.message });
             }
-            console.error('Error deleting tourist activity:', error)
-            res.status(500).json({ message: 'Error interno del servidor' })
+            console.error('Error deleting tourist activity:', error);
+            res.status(500).json({ message: 'Error interno del servidor' });
         }
     }
-}   
+}
 
-export default TouristActivitiesController  
+export default TouristActivitiesController;

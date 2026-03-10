@@ -1,13 +1,29 @@
 import ServiceEvaluation from '../models/serviceEvaluationModel.js';
 import EvaluationDetail from '../models/evaluationDetailModel.js';
+
 class ServiceEvaluationController {
     static async findAllServiceEvaluationController(req, res) {
         try {
-            const evaluations = await ServiceEvaluation.findAllServiceEvaluation();
+            const page = parseInt(req.query.page) || 1;
+            const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+            const id_service = req.query.id_service ? parseInt(req.query.id_service) : null;
+            const status = req.query.status || '';
+            const evaluator_id = req.query.evaluator_id ? parseInt(req.query.evaluator_id) : null;
+
+            const result = await ServiceEvaluation.findAllServiceEvaluation(
+                page,
+                limit,
+                id_service,
+                status,
+                evaluator_id
+            );
+
             res.json({
                 message: 'Evaluaciones de servicio obtenidas exitosamente',
-                count: evaluations.length,
-                evaluations: evaluations.map((evaluation) => ({
+                totalRecords: result.totalRecords,
+                totalPages: result.totalPages,
+                currentPage: result.currentPage,
+                evaluations: result.evaluations.map((evaluation) => ({
                     id: evaluation.id_evaluation,
                     serviceId: evaluation.id_service,
                     serviceName: evaluation.service_name,
@@ -33,10 +49,6 @@ class ServiceEvaluationController {
     }
 
     static async findServiceEvaluationByIdController(req, res) {
-        console.log(
-            'DEBUG BACKEND: findServiceEvaluationByIdController called with id:',
-            req.params.id_evaluation
-        );
         try {
             const evaluation = await ServiceEvaluation.findServiceEvaluationById(
                 req.params.id_evaluation
@@ -105,10 +117,6 @@ class ServiceEvaluationController {
     }
 
     static async createFullEvaluationController(req, res) {
-        console.log(
-            'DEBUG BACKEND: createFullEvaluationController body:',
-            JSON.stringify(req.body, null, 2)
-        );
         try {
             const {
                 id_service,
@@ -144,7 +152,6 @@ class ServiceEvaluationController {
                 finalScore: result.total_score,
             });
         } catch (error) {
-            console.error('DEBUG BACKEND ERROR in createFullEvaluationController:', error);
             res.status(500).json({
                 message: 'Error en createFullEvaluationController (Backend)',
                 error: error.message,

@@ -1,14 +1,28 @@
-import ServiceCertification from '../models/serviceCertificationModel.js'
+import ServiceCertification from '../models/serviceCertificationModel.js';
 
 class ServiceCertificationController {
     static async findAllCertificationsController(req, res) {
         try {
-            const certifications =
-                await ServiceCertification.findAllCertifications()
+            const page = parseInt(req.query.page) || 1;
+            const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+            const id_service = req.query.id_service ? parseInt(req.query.id_service) : null;
+            const certification_type = req.query.certification_type || '';
+            const status = req.query.status || '';
+
+            const result = await ServiceCertification.findAllCertifications(
+                page,
+                limit,
+                id_service,
+                certification_type,
+                status
+            );
+
             res.json({
                 message: 'Certificaciones obtenidas exitosamente',
-                count: certifications.length,
-                certifications: certifications.map((cert) => ({
+                totalRecords: result.totalRecords,
+                totalPages: result.totalPages,
+                currentPage: result.currentPage,
+                certifications: result.certifications.map((cert) => ({
                     id: cert.id_certification,
                     serviceId: cert.id_service,
                     certificationType: cert.certification_type,
@@ -18,25 +32,22 @@ class ServiceCertificationController {
                     evidenceUrl: cert.evidence_url,
                     status: cert.status,
                 })),
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async findCertificationByIdController(req, res) {
         try {
-            const certification =
-                await ServiceCertification.findCertificationById(
-                    req.params.id_certification
-                )
+            const certification = await ServiceCertification.findCertificationById(
+                req.params.id_certification
+            );
             if (!certification) {
-                return res
-                    .status(404)
-                    .json({ message: 'Certificación no encontrada' })
+                return res.status(404).json({ message: 'Certificación no encontrada' });
             }
             res.status(200).json({
                 message: 'Certificación obtenida exitosamente',
@@ -50,25 +61,26 @@ class ServiceCertificationController {
                     evidenceUrl: certification.evidence_url,
                     status: certification.status,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async findCertificationsByServiceIdController(req, res) {
         try {
-            const certifications =
-                await ServiceCertification.findCertificationsByServiceId(
-                    req.params.id_service
-                )
+            const result = await ServiceCertification.findAllCertifications(
+                1,
+                100,
+                parseInt(req.params.id_service)
+            );
             res.status(200).json({
                 message: 'Certificaciones por servicio obtenidas exitosamente',
-                count: certifications.length,
-                certifications: certifications.map((cert) => ({
+                count: result.totalRecords,
+                certifications: result.certifications.map((cert) => ({
                     id: cert.id_certification,
                     serviceId: cert.id_service,
                     certificationType: cert.certification_type,
@@ -78,25 +90,27 @@ class ServiceCertificationController {
                     evidenceUrl: cert.evidence_url,
                     status: cert.status,
                 })),
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async findCertificationsByTypeController(req, res) {
         try {
-            const certifications =
-                await ServiceCertification.findCertificationsByType(
-                    req.params.certification_type
-                )
+            const result = await ServiceCertification.findAllCertifications(
+                1,
+                100,
+                null,
+                req.params.certification_type
+            );
             res.status(200).json({
                 message: 'Certificaciones por tipo obtenidas exitosamente',
-                count: certifications.length,
-                certifications: certifications.map((cert) => ({
+                count: result.totalRecords,
+                certifications: result.certifications.map((cert) => ({
                     id: cert.id_certification,
                     serviceId: cert.id_service,
                     certificationType: cert.certification_type,
@@ -106,25 +120,28 @@ class ServiceCertificationController {
                     evidenceUrl: cert.evidence_url,
                     status: cert.status,
                 })),
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async findCertificationsByStatusController(req, res) {
         try {
-            const certifications =
-                await ServiceCertification.findCertificationsByStatus(
-                    req.params.status
-                )
+            const result = await ServiceCertification.findAllCertifications(
+                1,
+                100,
+                null,
+                '',
+                req.params.status
+            );
             res.status(200).json({
                 message: 'Certificaciones por estado obtenidas exitosamente',
-                count: certifications.length,
-                certifications: certifications.map((cert) => ({
+                count: result.totalRecords,
+                certifications: result.certifications.map((cert) => ({
                     id: cert.id_certification,
                     serviceId: cert.id_service,
                     certificationType: cert.certification_type,
@@ -134,20 +151,18 @@ class ServiceCertificationController {
                     evidenceUrl: cert.evidence_url,
                     status: cert.status,
                 })),
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async createCertificationController(req, res) {
         try {
-            const result = await ServiceCertification.createCertification(
-                req.body
-            )
+            const result = await ServiceCertification.createCertification(req.body);
             res.status(201).json({
                 message: 'Certificación creada exitosamente',
                 certification: {
@@ -160,25 +175,22 @@ class ServiceCertificationController {
                     evidenceUrl: result.evidence_url,
                     status: result.status,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async deleteCertificationController(req, res) {
         try {
-            const certification =
-                await ServiceCertification.deleteCertification(
-                    req.params.id_certification
-                )
+            const certification = await ServiceCertification.deleteCertification(
+                req.params.id_certification
+            );
             if (!certification) {
-                return res
-                    .status(404)
-                    .json({ message: 'Certificación no encontrada' })
+                return res.status(404).json({ message: 'Certificación no encontrada' });
             }
             res.status(200).json({
                 message: 'Certificación eliminada exitosamente',
@@ -192,26 +204,23 @@ class ServiceCertificationController {
                     evidenceUrl: certification.evidence_url,
                     status: certification.status,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async updateCertificationController(req, res) {
         try {
-            const certification =
-                await ServiceCertification.updateCertification(
-                    req.params.id_certification,
-                    req.body
-                )
+            const certification = await ServiceCertification.updateCertification(
+                req.params.id_certification,
+                req.body
+            );
             if (!certification) {
-                return res
-                    .status(404)
-                    .json({ message: 'Certificación no encontrada' })
+                return res.status(404).json({ message: 'Certificación no encontrada' });
             }
             res.status(200).json({
                 message: 'Certificación actualizada exitosamente',
@@ -225,26 +234,24 @@ class ServiceCertificationController {
                     evidenceUrl: certification.evidence_url,
                     status: certification.status,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async updateStatusController(req, res) {
         try {
-            const { status } = req.body
+            const { status } = req.body;
             const certification = await ServiceCertification.updateStatus(
                 req.params.id_certification,
                 status
-            )
+            );
             if (!certification) {
-                return res
-                    .status(404)
-                    .json({ message: 'Certificación no encontrada' })
+                return res.status(404).json({ message: 'Certificación no encontrada' });
             }
             res.status(200).json({
                 message: 'Estado de certificación actualizado exitosamente',
@@ -258,14 +265,14 @@ class ServiceCertificationController {
                     evidenceUrl: certification.evidence_url,
                     status: certification.status,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 }
 
-export default ServiceCertificationController
+export default ServiceCertificationController;

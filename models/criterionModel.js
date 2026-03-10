@@ -1,45 +1,132 @@
-import pool from '../config/db.js'
+import pool from '../config/db.js';
 
 class Criterion {
-    static async findAllCriterion() {
-        const result = await pool.query('SELECT * FROM evaluation_criterion')
-        return result.rows
+    static async findAllCriterion(
+        page = 1,
+        limit = 50,
+        search = '',
+        id_template = null,
+        active = null
+    ) {
+        const offset = (page - 1) * limit;
+
+        const values = [];
+        const conditions = [];
+        let index = 1;
+
+        if (search) {
+            conditions.push(`(name ILIKE $${index} OR description ILIKE $${index})`);
+            values.push(`%${search}%`);
+            index++;
+        }
+
+        if (id_template !== null) {
+            conditions.push(`id_template = $${index}`);
+            values.push(id_template);
+            index++;
+        }
+
+        if (active !== null) {
+            conditions.push(`active = $${index}`);
+            values.push(active);
+            index++;
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        // Contar total con filtros
+        const countQuery = await pool.query(
+            `SELECT COUNT(*) FROM evaluation_criterion ${whereClause}`,
+            values
+        );
+
+        const totalRecords = parseInt(countQuery.rows[0].count);
+        const totalPages = Math.ceil(totalRecords / limit);
+
+        // Obtener datos paginados
+        const dataQuery = await pool.query(
+            `SELECT * FROM evaluation_criterion
+             ${whereClause}
+             ORDER BY order_index ASC
+             LIMIT $${index}
+             OFFSET $${index + 1}`,
+            [...values, limit, offset]
+        );
+
+        return {
+            totalRecords,
+            totalPages,
+            currentPage: page,
+            criteria: dataQuery.rows,
+        };
     }
 
     static async findCriterionById(id_criterion) {
         const result = await pool.query(
             `SELECT * FROM evaluation_criterion WHERE id_criterion = $1`,
             [id_criterion]
-        )
-        return result.rows[0]
+        );
+        return result.rows[0] || null;
     }
 
     static async createCriterion(data) {
-        const { id_template, name, description, weight, order_index, active } =
-            data 
+        const { id_template, name, description, weight, order_index, active } = data;
         const result = await pool.query(
-            `INSERT INTO evaluation_criterion (id_template, name, description, weight, order_index, active) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id_criterion, id_template, name, description, weight, order_index, active`, 
+            `INSERT INTO evaluation_criterion (id_template, name, description, weight, order_index, active) 
+             VALUES ($1, $2, $3, $4, $5, $6) 
+             RETURNING id_criterion, id_template, name, description, weight, order_index, active`,
             [id_template, name, description, weight, order_index, active]
-        )
-        return result.rows[0]
+        );
+        return result.rows[0];
     }
 
     static async deleteCriterion(id_criterion) {
         const result = await pool.query(
             'DELETE FROM evaluation_criterion WHERE id_criterion = $1 RETURNING *',
             [id_criterion]
-        )
-        return result.rows[0]
+        );
+        return result.rows[0] || null;
     }
 
     static async updateCriterion(id_criterion, data) {
-        const { name, description, weight, order_index, active } = data 
+        const { name, description, weight, order_index, active } = data;
+
+        const fields = [];
+        const values = [];
+        let index = 1;
+
+        if (name !== undefined) {
+            fields.push(`name = $${index++}`);
+            values.push(name);
+        }
+        if (description !== undefined) {
+            fields.push(`description = $${index++}`);
+            values.push(description);
+        }
+        if (weight !== undefined) {
+            fields.push(`weight = $${index++}`);
+            values.push(weight);
+        }
+        if (order_index !== undefined) {
+            fields.push(`order_index = $${index++}`);
+            values.push(order_index);
+        }
+        if (active !== undefined) {
+            fields.push(`active = $${index++}`);
+            values.push(active);
+        }
+
+        if (fields.length === 0) return null;
+
         const result = await pool.query(
-            `UPDATE evaluation_criterion SET name = $1, description = $2, weight = $3, order_index = $4, active = $5 WHERE id_criterion = $6 RETURNING id_criterion, id_template, name, description, weight, order_index, active`, 
-            [name, description, weight, order_index, active, id_criterion]
-        )
-        return result.rows[0]
+            `UPDATE evaluation_criterion 
+             SET ${fields.join(', ')} 
+             WHERE id_criterion = $${index} 
+             RETURNING id_criterion, id_template, name, description, weight, order_index, active`,
+            [...values, id_criterion]
+        );
+        return result.rows[0] || null;
     }
 }
 
-export default Criterion
+export default Criterion;

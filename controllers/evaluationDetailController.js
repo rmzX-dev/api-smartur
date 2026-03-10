@@ -1,13 +1,28 @@
-import EvaluationDetail from '../models/evaluationDetailModel.js'
+import EvaluationDetail from '../models/evaluationDetailModel.js';
 
 class EvaluationDetailController {
     static async findAllEvaluationDetailController(req, res) {
         try {
-            const details = await EvaluationDetail.findAllEvaluationDetail()
+            const page = parseInt(req.query.page) || 1;
+            const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+            const id_evaluation = req.query.id_evaluation
+                ? parseInt(req.query.id_evaluation)
+                : null;
+            const id_criterion = req.query.id_criterion ? parseInt(req.query.id_criterion) : null;
+
+            const result = await EvaluationDetail.findAllEvaluationDetail(
+                page,
+                limit,
+                id_evaluation,
+                id_criterion
+            );
+
             res.json({
                 message: 'Detalles de evaluación obtenidos exitosamente',
-                count: details.length,
-                details: details.map((detail) => ({
+                totalRecords: result.totalRecords,
+                totalPages: result.totalPages,
+                currentPage: result.currentPage,
+                details: result.details.map((detail) => ({
                     id: detail.id_detail,
                     evaluationId: detail.id_evaluation,
                     criterionId: detail.id_criterion,
@@ -17,24 +32,20 @@ class EvaluationDetailController {
                     attachedEvidences: detail.attached_evidences,
                     createdAt: detail.created_at,
                 })),
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async findEvaluationDetailByIdController(req, res) {
         try {
-            const detail = await EvaluationDetail.findEvaluationDetailById(
-                req.params.id_detail
-            )
+            const detail = await EvaluationDetail.findEvaluationDetailById(req.params.id_detail);
             if (!detail) {
-                return res
-                    .status(404)
-                    .json({ message: 'Detalle de evaluación no encontrado' })
+                return res.status(404).json({ message: 'Detalle de evaluación no encontrado' });
             }
             res.status(200).json({
                 message: 'Detalle de evaluación obtenido exitosamente',
@@ -48,24 +59,22 @@ class EvaluationDetailController {
                     attachedEvidences: detail.attached_evidences,
                     createdAt: detail.created_at,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async findEvaluationDetailByEvaluationIdController(req, res) {
         try {
-            const details =
-                await EvaluationDetail.findEvaluationDetailByEvaluationId(
-                    req.params.id_evaluation
-                )
+            const details = await EvaluationDetail.findEvaluationDetailByEvaluationId(
+                req.params.id_evaluation
+            );
             res.status(200).json({
-                message:
-                    'Detalles de evaluación por evaluación obtenidos exitosamente',
+                message: 'Detalles de evaluación por evaluación obtenidos exitosamente',
                 count: details.length,
                 details: details.map((detail) => ({
                     id: detail.id_detail,
@@ -77,20 +86,18 @@ class EvaluationDetailController {
                     attachedEvidences: detail.attached_evidences,
                     createdAt: detail.created_at,
                 })),
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async createEvaluationDetailController(req, res) {
         try {
-            const result = await EvaluationDetail.createEvaluationDetail(
-                req.body
-            )
+            const result = await EvaluationDetail.createEvaluationDetail(req.body);
             res.status(201).json({
                 message: 'Detalle de evaluación creado exitosamente',
                 detail: {
@@ -103,24 +110,20 @@ class EvaluationDetailController {
                     attachedEvidences: result.attached_evidences,
                     createdAt: result.created_at,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
     static async deleteEvaluationDetailController(req, res) {
         try {
-            const detail = await EvaluationDetail.deleteEvaluationDetail(
-                req.params.id_detail
-            )
+            const detail = await EvaluationDetail.deleteEvaluationDetail(req.params.id_detail);
             if (!detail) {
-                return res
-                    .status(404)
-                    .json({ message: 'Detalle de evaluación no encontrado' })
+                return res.status(404).json({ message: 'Detalle de evaluación no encontrado' });
             }
             res.status(200).json({
                 message: 'Detalle de evaluación eliminado exitosamente',
@@ -134,12 +137,12 @@ class EvaluationDetailController {
                     attachedEvidences: detail.attached_evidences,
                     createdAt: detail.created_at,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 
@@ -148,11 +151,9 @@ class EvaluationDetailController {
             const detail = await EvaluationDetail.updateEvaluationDetail(
                 req.params.id_detail,
                 req.body
-            )
+            );
             if (!detail) {
-                return res
-                    .status(404)
-                    .json({ message: 'Detalle de evaluación no encontrado' })
+                return res.status(404).json({ message: 'Detalle de evaluación no encontrado' });
             }
             res.status(200).json({
                 message: 'Detalle de evaluación actualizado exitosamente',
@@ -166,14 +167,14 @@ class EvaluationDetailController {
                     attachedEvidences: detail.attached_evidences,
                     createdAt: detail.created_at,
                 },
-            })
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Error interno en el servidor',
                 error: error.message,
-            })
+            });
         }
     }
 }
 
-export default EvaluationDetailController
+export default EvaluationDetailController;

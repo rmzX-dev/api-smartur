@@ -1,17 +1,66 @@
 import pool from '../config/db.js';
 
 class Template {
-    static async findTemplate() {
-        const result = await pool.query('SELECT * FROM evaluation_template');
-        return result.rows;
+    static async findTemplate(page = 1, limit = 50, search = '', service_type = '', active = null) {
+        const offset = (page - 1) * limit;
+
+        const values = [];
+        const conditions = [];
+        let index = 1;
+
+        if (search) {
+            conditions.push(`name ILIKE $${index}`);
+            values.push(`%${search}%`);
+            index++;
+        }
+
+        if (service_type) {
+            conditions.push(`service_type ILIKE $${index}`);
+            values.push(`%${service_type}%`);
+            index++;
+        }
+
+        if (active !== null) {
+            conditions.push(`active = $${index}`);
+            values.push(active);
+            index++;
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        // Contar total con filtros
+        const countQuery = await pool.query(
+            `SELECT COUNT(*) FROM evaluation_template ${whereClause}`,
+            values
+        );
+
+        const totalRecords = parseInt(countQuery.rows[0].count);
+        const totalPages = Math.ceil(totalRecords / limit);
+
+        // Obtener datos paginados
+        const dataQuery = await pool.query(
+            `SELECT * FROM evaluation_template
+             ${whereClause}
+             ORDER BY id_template
+             LIMIT $${index}
+             OFFSET $${index + 1}`,
+            [...values, limit, offset]
+        );
+
+        return {
+            totalRecords,
+            totalPages,
+            currentPage: page,
+            templates: dataQuery.rows,
+        };
     }
 
     static async findTemplateByid(id_template) {
         const result = await pool.query(
-            'select * from evaluation_template WHERE id_template = $1',
+            'SELECT * FROM evaluation_template WHERE id_template = $1',
             [id_template]
         );
-        return result.rows[0];
+        return result.rows[0] || null;
     }
 
     static async createTemplate(data) {
@@ -31,8 +80,45 @@ class Template {
             'DELETE FROM evaluation_template WHERE id_template = $1 RETURNING *',
             [id_template]
         );
-        return result.rows[0];
+        return result.rows[0] || null;
     }
+
+    static async updateTemplate(id_template, data) {
+        const { name, version, service_type, active } = data;
+
+        const fields = [];
+        const values = [];
+        let index = 1;
+
+        if (name !== undefined) {
+            fields.push(`name = $${index++}`);
+            values.push(name);
+        }
+        if (version !== undefined) {
+            fields.push(`version = $${index++}`);
+            values.push(version);
+        }
+        if (service_type !== undefined) {
+            fields.push(`service_type = $${index++}`);
+            values.push(service_type);
+        }
+        if (active !== undefined) {
+            fields.push(`active = $${index++}`);
+            values.push(active);
+        }
+
+        if (fields.length === 0) return null;
+
+        const result = await pool.query(
+            `UPDATE evaluation_template 
+             SET ${fields.join(', ')} 
+             WHERE id_template = $${index} 
+             RETURNING *`,
+            [...values, id_template]
+        );
+        return result.rows[0] || null;
+    }
+
     static async getFullRubric(id_template) {
         // Fetch template
         const template = await this.findTemplateByid(id_template);

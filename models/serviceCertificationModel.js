@@ -1,41 +1,72 @@
-import pool from '../config/db.js'
+import pool from '../config/db.js';
 
 class ServiceCertification {
-    static async findAllCertifications() {
-        const result = await pool.query('SELECT * FROM service_certification')
-        return result.rows
+    static async findAllCertifications(
+        page = 1,
+        limit = 50,
+        id_service = null,
+        certification_type = '',
+        status = ''
+    ) {
+        const offset = (page - 1) * limit;
+
+        const values = [];
+        const conditions = [];
+        let index = 1;
+
+        if (id_service !== null) {
+            conditions.push(`id_service = $${index}`);
+            values.push(id_service);
+            index++;
+        }
+
+        if (certification_type) {
+            conditions.push(`certification_type ILIKE $${index}`);
+            values.push(`%${certification_type}%`);
+            index++;
+        }
+
+        if (status) {
+            conditions.push(`status ILIKE $${index}`);
+            values.push(`%${status}%`);
+            index++;
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        // Contar total con filtros
+        const countQuery = await pool.query(
+            `SELECT COUNT(*) FROM service_certification ${whereClause}`,
+            values
+        );
+
+        const totalRecords = parseInt(countQuery.rows[0].count);
+        const totalPages = Math.ceil(totalRecords / limit);
+
+        // Obtener datos paginados
+        const dataQuery = await pool.query(
+            `SELECT * FROM service_certification
+             ${whereClause}
+             ORDER BY id_certification
+             LIMIT $${index}
+             OFFSET $${index + 1}`,
+            [...values, limit, offset]
+        );
+
+        return {
+            totalRecords,
+            totalPages,
+            currentPage: page,
+            certifications: dataQuery.rows,
+        };
     }
 
     static async findCertificationById(id_certification) {
         const result = await pool.query(
             'SELECT * FROM service_certification WHERE id_certification = $1',
             [id_certification]
-        )
-        return result.rows[0]
-    }
-
-    static async findCertificationsByServiceId(id_service) {
-        const result = await pool.query(
-            'SELECT * FROM service_certification WHERE id_service = $1',
-            [id_service]
-        )
-        return result.rows
-    }
-
-    static async findCertificationsByType(certification_type) {
-        const result = await pool.query(
-            'SELECT * FROM service_certification WHERE certification_type = $1',
-            [certification_type]
-        )
-        return result.rows
-    }
-
-    static async findCertificationsByStatus(status) {
-        const result = await pool.query(
-            'SELECT * FROM service_certification WHERE status = $1',
-            [status]
-        )
-        return result.rows
+        );
+        return result.rows[0] || null;
     }
 
     static async createCertification(data) {
@@ -47,7 +78,7 @@ class ServiceCertification {
             issuing_organization,
             evidence_url,
             status,
-        } = data
+        } = data;
 
         const result = await pool.query(
             `INSERT INTO service_certification 
@@ -63,8 +94,8 @@ class ServiceCertification {
                 evidence_url,
                 status,
             ]
-        )
-        return result.rows[0]
+        );
+        return result.rows[0];
     }
 
     static async updateCertification(id_certification, data) {
@@ -76,43 +107,68 @@ class ServiceCertification {
             issuing_organization,
             evidence_url,
             status,
-        } = data
+        } = data;
+
+        const fields = [];
+        const values = [];
+        let index = 1;
+
+        if (id_service !== undefined) {
+            fields.push(`id_service = $${index++}`);
+            values.push(id_service);
+        }
+        if (certification_type !== undefined) {
+            fields.push(`certification_type = $${index++}`);
+            values.push(certification_type);
+        }
+        if (obtainment_date !== undefined) {
+            fields.push(`obtainment_date = $${index++}`);
+            values.push(obtainment_date);
+        }
+        if (expiration_date !== undefined) {
+            fields.push(`expiration_date = $${index++}`);
+            values.push(expiration_date);
+        }
+        if (issuing_organization !== undefined) {
+            fields.push(`issuing_organization = $${index++}`);
+            values.push(issuing_organization);
+        }
+        if (evidence_url !== undefined) {
+            fields.push(`evidence_url = $${index++}`);
+            values.push(evidence_url);
+        }
+        if (status !== undefined) {
+            fields.push(`status = $${index++}`);
+            values.push(status);
+        }
+
+        if (fields.length === 0) return null;
 
         const result = await pool.query(
             `UPDATE service_certification 
-            SET id_service = $1, certification_type = $2, obtainment_date = $3, 
-                expiration_date = $4, issuing_organization = $5, evidence_url = $6, status = $7
-            WHERE id_certification = $8 
+            SET ${fields.join(', ')}
+            WHERE id_certification = $${index} 
             RETURNING *`,
-            [
-                id_service,
-                certification_type,
-                obtainment_date,
-                expiration_date,
-                issuing_organization,
-                evidence_url,
-                status,
-                id_certification,
-            ]
-        )
-        return result.rows[0]
+            [...values, id_certification]
+        );
+        return result.rows[0] || null;
     }
 
     static async deleteCertification(id_certification) {
         const result = await pool.query(
             'DELETE FROM service_certification WHERE id_certification = $1 RETURNING *',
             [id_certification]
-        )
-        return result.rows[0]
+        );
+        return result.rows[0] || null;
     }
 
     static async updateStatus(id_certification, status) {
         const result = await pool.query(
             'UPDATE service_certification SET status = $1 WHERE id_certification = $2 RETURNING *',
             [status, id_certification]
-        )
-        return result.rows[0]
+        );
+        return result.rows[0] || null;
     }
 }
 
-export default ServiceCertification
+export default ServiceCertification;
