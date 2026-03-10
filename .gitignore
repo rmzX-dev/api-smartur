@@ -1,7 +1,18 @@
+# Environment
 .env
 !.env.example
+
+# Dependencies
 /node_modules
-pnpm-lock.yaml
+
+# Logs
 npm-debug.log*
-README_EVALUATION.md
-SECURITY.md
+
+# Documentation (Only keep README.md)
+*.md
+!README.md
+
+# IDEs and System
+.vscode/
+.idea/
+.DS_Store
