@@ -57,17 +57,36 @@ CREATE INDEX idx_user_role ON "user"(role_id);
 CREATE INDEX idx_user_created_at ON "user"(created_at DESC);
 
 
+-- Tabla de Perfil del Viajero Optimizada para SMARTUR
 CREATE TABLE traveler_profile (
   id_profile SERIAL PRIMARY KEY,
   user_id INT NOT NULL,
-  age INT,
-  gender VARCHAR(20),
-  travel_type VARCHAR(50),
-  interests TEXT,
-  restrictions TEXT,
+  
+  -- Datos de Perfil (Step 1)
+  age INT,                                    -- Edad exacta
+  age_range VARCHAR(10),                      -- Rango (ej. '18-25')
+  gender VARCHAR(20),                         -- Género
+  
+  -- Preferencias y Estilo (Step 2)
+  interests TEXT[],                           -- Tipos de turismo {naturaleza, aventura, etc.}
+  activity_level INT DEFAULT 3,               -- Nivel 1-5
+  preferred_place VARCHAR(50),                -- 'aire', 'cerrado', 'indiferente'
+  
+  -- Contexto Fijo (Step 3 / Step 4)
+  travel_type VARCHAR(50),                    -- 'solo', 'pareja', 'familia', 'amigos'
+  has_accessibility BOOLEAN DEFAULT FALSE,    -- Necesita accesibilidad
+  accessibility_detail TEXT,                  -- Detalles de la necesidad
+  has_visited_before BOOLEAN DEFAULT FALSE,   -- ¿Ha visitado la región?
+  
+  -- Campos Originales / Auditoría
+  restrictions TEXT,                          -- Alergias o restricciones médicas
   sustainable_preferences BOOLEAN DEFAULT FALSE,
-  FOREIGN KEY (user_id) REFERENCES "user"(user_id)
+  
+  FOREIGN KEY (user_id) REFERENCES "user"(user_id) ON DELETE CASCADE
 );
+
+-- Índice para búsquedas rápidas por usuario
+CREATE INDEX idx_profile_user_id ON traveler_profile(user_id);
 
 CREATE TABLE location (
   id_location SERIAL PRIMARY KEY,
