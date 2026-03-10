@@ -1,17 +1,7 @@
-# Environment
 .env
 !.env.example
-
-# Dependencies
 /node_modules
-
-# Logs
+pnpm-lock.yaml
 npm-debug.log*
-
-# Documentation (ignored as per user request)
-*.md
-
-# IDEs and System
-.vscode/
-.idea/
-.DS_Store
+README_EVALUATION.md
+SECURITY.md
