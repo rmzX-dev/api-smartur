@@ -38,4 +38,7 @@ router.delete(
     travelerProfileController.deleteTravelerProfileController
 );
 
+// Guardar/actualizar preferencias: usuario autenticado
+router.post('/profiles/preferences', verifyToken, travelerProfileController.savePreferences);
+
 export default router;

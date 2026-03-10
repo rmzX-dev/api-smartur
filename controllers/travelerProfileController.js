@@ -155,6 +155,24 @@ export class TravelerProfileController {
             res.status(500).json({ message: 'Error interno del servidor', error: error.message });
         }
     }
+
+    static async savePreferences(req, res) {
+        try {
+            const userId = req.user.id;
+            const data = await TravelerProfile.savePreferences(userId, req.body);
+
+            res.status(200).json({
+                message: 'Preferencias de SMARTUR actualizadas',
+                data: data,
+            });
+        } catch (error) {
+            console.error('Error en savePreferences:', error);
+            res.status(500).json({
+                message: 'Error al guardar el perfil del viajero',
+                error: error.message,
+            });
+        }
+    }
 }
 
 export default TravelerProfileController;

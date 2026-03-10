@@ -60,7 +60,7 @@ CREATE INDEX idx_user_created_at ON "user"(created_at DESC);
 -- Tabla de Perfil del Viajero Optimizada para SMARTUR
 CREATE TABLE traveler_profile (
   id_profile SERIAL PRIMARY KEY,
-  user_id INT NOT NULL,
+  user_id INT UNIQUE NOT NULL,
   
   -- Datos de Perfil (Step 1)
   age INT,                                    -- Edad exacta

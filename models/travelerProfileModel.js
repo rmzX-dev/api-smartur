@@ -68,56 +68,99 @@ class TravelerProfile {
         return result.rows[0] || null;
     }
 
+    static async findByUserId(user_id) {
+        const result = await pool.query(`SELECT * FROM traveler_profile WHERE user_id = $1`, [
+            user_id,
+        ]);
+        return result.rows[0] || null;
+    }
+
+    static async savePreferences(userId, data) {
+        const {
+            age, age_range, gender, interests, activity_level,
+            preferred_place, travel_type, has_accessibility,
+            accessibility_detail, has_visited_before, restrictions,
+            sustainable_preferences
+        } = data;
+
+        const query = `
+            INSERT INTO traveler_profile 
+                (user_id, age, age_range, gender, interests, activity_level, 
+                preferred_place, travel_type, has_accessibility, 
+                accessibility_detail, has_visited_before, restrictions, 
+                sustainable_preferences)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ON CONFLICT (user_id) 
+            DO UPDATE SET 
+                age = EXCLUDED.age,
+                age_range = EXCLUDED.age_range,
+                gender = EXCLUDED.gender,
+                interests = EXCLUDED.interests,
+                activity_level = EXCLUDED.activity_level,
+                preferred_place = EXCLUDED.preferred_place,
+                travel_type = EXCLUDED.travel_type,
+                has_accessibility = EXCLUDED.has_accessibility,
+                accessibility_detail = EXCLUDED.accessibility_detail,
+                has_visited_before = EXCLUDED.has_visited_before,
+                restrictions = EXCLUDED.restrictions,
+                sustainable_preferences = EXCLUDED.sustainable_preferences
+            RETURNING *;
+        `;
+
+        const values = [
+            userId, age, age_range, gender, interests, activity_level,
+            preferred_place, travel_type, has_accessibility,
+            accessibility_detail, has_visited_before, restrictions,
+            sustainable_preferences
+        ];
+
+        const result = await pool.query(query, values);
+        return result.rows[0];
+    }
+
     static async createTravelerProfile(data) {
         const {
-            user_id,
-            age,
-            gender,
-            travel_type,
-            interests,
-            restrictions,
-            sustainable_preferences,
+            user_id, age, age_range, gender, travel_type, interests, 
+            activity_level, preferred_place, has_accessibility,
+            accessibility_detail, has_visited_before, restrictions, 
+            sustainable_preferences
         } = data;
 
         const result = await pool.query(
-            `INSERT INTO traveler_profile (user_id, age, gender, travel_type, interests, restrictions, sustainable_preferences) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7) 
-             RETURNING id_profile, user_id, age, gender, travel_type, interests, restrictions, sustainable_preferences`,
-            [user_id, age, gender, travel_type, interests, restrictions, sustainable_preferences]
+            `INSERT INTO traveler_profile 
+                (user_id, age, age_range, gender, travel_type, interests, 
+                activity_level, preferred_place, has_accessibility, 
+                accessibility_detail, has_visited_before, restrictions, 
+                sustainable_preferences) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
+             RETURNING *`,
+            [
+                user_id, age, age_range, gender, travel_type, interests, 
+                activity_level, preferred_place, has_accessibility, 
+                accessibility_detail, has_visited_before, restrictions, 
+                sustainable_preferences
+            ]
         );
         return result.rows[0];
     }
 
     static async updateTravelerProfile(id_profile, data) {
-        const { age, gender, travel_type, interests, restrictions, sustainable_preferences } = data;
+        const allowedFields = [
+            'age', 'age_range', 'gender', 'travel_type', 'interests', 
+            'activity_level', 'preferred_place', 'has_accessibility', 
+            'accessibility_detail', 'has_visited_before', 'restrictions', 
+            'sustainable_preferences'
+        ];
 
         const fields = [];
         const values = [];
         let index = 1;
 
-        if (age !== undefined) {
-            fields.push(`age = $${index++}`);
-            values.push(age);
-        }
-        if (gender !== undefined) {
-            fields.push(`gender = $${index++}`);
-            values.push(gender);
-        }
-        if (travel_type !== undefined) {
-            fields.push(`travel_type = $${index++}`);
-            values.push(travel_type);
-        }
-        if (interests !== undefined) {
-            fields.push(`interests = $${index++}`);
-            values.push(interests);
-        }
-        if (restrictions !== undefined) {
-            fields.push(`restrictions = $${index++}`);
-            values.push(restrictions);
-        }
-        if (sustainable_preferences !== undefined) {
-            fields.push(`sustainable_preferences = $${index++}`);
-            values.push(sustainable_preferences);
+        for (const field of allowedFields) {
+            if (data[field] !== undefined) {
+                fields.push(`${field} = $${index++}`);
+                values.push(data[field]);
+            }
         }
 
         if (fields.length === 0) return null;
@@ -126,7 +169,7 @@ class TravelerProfile {
             `UPDATE traveler_profile 
              SET ${fields.join(', ')} 
              WHERE id_profile = $${index} 
-             RETURNING id_profile, user_id, age, gender, travel_type, interests, restrictions, sustainable_preferences`,
+             RETURNING *`,
             [...values, id_profile]
         );
         return result.rows[0] || null;
@@ -135,8 +178,8 @@ class TravelerProfile {
     static async deleteTravelerProfile(id_profile) {
         const result = await pool.query(
             `DELETE FROM traveler_profile 
-         WHERE id_profile = $1 
-         RETURNING id_profile, user_id, age, gender, travel_type, interests, restrictions, sustainable_preferences`,
+             WHERE id_profile = $1 
+             RETURNING *`,
             [id_profile]
         );
         return result.rows[0] || null;
