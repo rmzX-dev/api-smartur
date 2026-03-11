@@ -13,4 +13,8 @@ router.post('/forgot', ServicesController.forgotPasswordController)
 router.post('/reset', ServicesController.resetPasswordController)
 
 router.post('/register', UserController.register)
+
+// google auth
+router.post('/google-login', UserController.googleLogin);
+
 export default router
