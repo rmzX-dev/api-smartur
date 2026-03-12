@@ -1,89 +1,100 @@
-import pool from '../config/db.js';
+import pool from "../config/db.js";
 
 class TravelerProfile {
-    static async findAllTravelerProfile(
-        page = 1,
-        limit = 50,
-        search = '',
-        gender = '',
-        travel_type = ''
-    ) {
-        const offset = (page - 1) * limit;
+  static async findAllTravelerProfile(
+    page = 1,
+    limit = 50,
+    search = "",
+    gender = "",
+    travel_type = "",
+  ) {
+    const offset = (page - 1) * limit;
 
-        const values = [];
-        const conditions = [];
-        let index = 1;
+    const values = [];
+    const conditions = [];
+    let index = 1;
 
-        if (search) {
-            conditions.push(`user_id::TEXT ILIKE $${index}`);
-            values.push(`%${search}%`);
-            index++;
-        }
+    if (search) {
+      conditions.push(`user_id::TEXT ILIKE $${index}`);
+      values.push(`%${search}%`);
+      index++;
+    }
 
-        if (gender) {
-            conditions.push(`gender ILIKE $${index}`);
-            values.push(`%${gender}%`);
-            index++;
-        }
+    if (gender) {
+      conditions.push(`gender ILIKE $${index}`);
+      values.push(`%${gender}%`);
+      index++;
+    }
 
-        if (travel_type) {
-            conditions.push(`travel_type ILIKE $${index}`);
-            values.push(`%${travel_type}%`);
-            index++;
-        }
+    if (travel_type) {
+      conditions.push(`travel_type ILIKE $${index}`);
+      values.push(`%${travel_type}%`);
+      index++;
+    }
 
-        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-        // Contar total con filtros
-        const countQuery = await pool.query(
-            `SELECT COUNT(*) FROM traveler_profile ${whereClause}`,
-            values
-        );
+    // Contar total con filtros
+    const countQuery = await pool.query(
+      `SELECT COUNT(*) FROM traveler_profile ${whereClause}`,
+      values,
+    );
 
-        const totalRecords = parseInt(countQuery.rows[0].count);
-        const totalPages = Math.ceil(totalRecords / limit);
+    const totalRecords = parseInt(countQuery.rows[0].count);
+    const totalPages = Math.ceil(totalRecords / limit);
 
-        // Obtener datos paginados
-        const dataQuery = await pool.query(
-            `SELECT * FROM traveler_profile
+    // Obtener datos paginados
+    const dataQuery = await pool.query(
+      `SELECT * FROM traveler_profile
              ${whereClause}
              ORDER BY id_profile
              LIMIT $${index}
              OFFSET $${index + 1}`,
-            [...values, limit, offset]
-        );
+      [...values, limit, offset],
+    );
 
-        return {
-            totalRecords,
-            totalPages,
-            currentPage: page,
-            profiles: dataQuery.rows,
-        };
-    }
+    return {
+      totalRecords,
+      totalPages,
+      currentPage: page,
+      profiles: dataQuery.rows,
+    };
+  }
 
-    static async findTravelerProfileById(id_profile) {
-        const result = await pool.query(`SELECT * FROM traveler_profile WHERE id_profile = $1`, [
-            id_profile,
-        ]);
-        return result.rows[0] || null;
-    }
+  static async findTravelerProfileById(id_profile) {
+    const result = await pool.query(
+      `SELECT * FROM traveler_profile WHERE id_profile = $1`,
+      [id_profile],
+    );
+    return result.rows[0] || null;
+  }
 
-    static async findByUserId(user_id) {
-        const result = await pool.query(`SELECT * FROM traveler_profile WHERE user_id = $1`, [
-            user_id,
-        ]);
-        return result.rows[0] || null;
-    }
+  static async findByUserId(user_id) {
+    const result = await pool.query(
+      `SELECT * FROM traveler_profile WHERE user_id = $1`,
+      [user_id],
+    );
+    return result.rows[0] || null;
+  }
 
-    static async savePreferences(userId, data) {
-        const {
-            age, age_range, gender, interests, activity_level,
-            preferred_place, travel_type, has_accessibility,
-            accessibility_detail, has_visited_before, restrictions,
-            sustainable_preferences
-        } = data;
+  static async savePreferences(userId, data) {
+    const {
+      age,
+      age_range,
+      gender,
+      interests,
+      activity_level,
+      preferred_place,
+      travel_type,
+      has_accessibility,
+      accessibility_detail,
+      has_visited_before,
+      restrictions,
+      sustainable_preferences,
+    } = data;
 
-        const query = `
+    const query = `
             INSERT INTO traveler_profile 
                 (user_id, age, age_range, gender, interests, activity_level, 
                 preferred_place, travel_type, has_accessibility, 
@@ -107,83 +118,118 @@ class TravelerProfile {
             RETURNING *;
         `;
 
-        const values = [
-            userId, age, age_range, gender, interests, activity_level,
-            preferred_place, travel_type, has_accessibility,
-            accessibility_detail, has_visited_before, restrictions,
-            sustainable_preferences
-        ];
+    const values = [
+      userId,
+      age,
+      age_range,
+      gender,
+      interests,
+      activity_level,
+      preferred_place,
+      travel_type,
+      has_accessibility,
+      accessibility_detail,
+      has_visited_before,
+      restrictions,
+      sustainable_preferences,
+    ];
 
-        const result = await pool.query(query, values);
-        return result.rows[0];
-    }
+    const result = await pool.query(query, values);
+    return result.rows[0];
+  }
 
-    static async createTravelerProfile(data) {
-        const {
-            user_id, age, age_range, gender, travel_type, interests, 
-            activity_level, preferred_place, has_accessibility,
-            accessibility_detail, has_visited_before, restrictions, 
-            sustainable_preferences
-        } = data;
+  static async createTravelerProfile(data) {
+    const {
+      user_id,
+      age,
+      age_range,
+      gender,
+      travel_type,
+      interests,
+      activity_level,
+      preferred_place,
+      has_accessibility,
+      accessibility_detail,
+      has_visited_before,
+      restrictions,
+      sustainable_preferences,
+    } = data;
 
-        const result = await pool.query(
-            `INSERT INTO traveler_profile 
+    const result = await pool.query(
+      `INSERT INTO traveler_profile 
                 (user_id, age, age_range, gender, travel_type, interests, 
                 activity_level, preferred_place, has_accessibility, 
                 accessibility_detail, has_visited_before, restrictions, 
                 sustainable_preferences) 
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
              RETURNING *`,
-            [
-                user_id, age, age_range, gender, travel_type, interests, 
-                activity_level, preferred_place, has_accessibility, 
-                accessibility_detail, has_visited_before, restrictions, 
-                sustainable_preferences
-            ]
-        );
-        return result.rows[0];
+      [
+        user_id,
+        age,
+        age_range,
+        gender,
+        travel_type,
+        interests,
+        activity_level,
+        preferred_place,
+        has_accessibility,
+        accessibility_detail,
+        has_visited_before,
+        restrictions,
+        sustainable_preferences,
+      ],
+    );
+    return result.rows[0];
+  }
+
+  static async updateTravelerProfile(id_profile, data) {
+    const allowedFields = [
+      "age",
+      "age_range",
+      "gender",
+      "travel_type",
+      "interests",
+      "activity_level",
+      "preferred_place",
+      "has_accessibility",
+      "accessibility_detail",
+      "has_visited_before",
+      "restrictions",
+      "sustainable_preferences",
+    ];
+
+    const fields = [];
+    const values = [];
+    let index = 1;
+
+    for (const field of allowedFields) {
+      if (data[field] !== undefined) {
+        fields.push(`${field} = $${index++}`);
+        values.push(data[field]);
+      }
     }
 
-    static async updateTravelerProfile(id_profile, data) {
-        const allowedFields = [
-            'age', 'age_range', 'gender', 'travel_type', 'interests', 
-            'activity_level', 'preferred_place', 'has_accessibility', 
-            'accessibility_detail', 'has_visited_before', 'restrictions', 
-            'sustainable_preferences'
-        ];
+    if (fields.length === 0) return null;
 
-        const fields = [];
-        const values = [];
-        let index = 1;
-
-        for (const field of allowedFields) {
-            if (data[field] !== undefined) {
-                fields.push(`${field} = $${index++}`);
-                values.push(data[field]);
-            }
-        }
-
-        if (fields.length === 0) return null;
-
-        const result = await pool.query(
-            `UPDATE traveler_profile 
-             SET ${fields.join(', ')} 
+    const result = await pool.query(
+      `UPDATE traveler_profile 
+             SET ${fields.join(", ")} 
              WHERE id_profile = $${index} 
              RETURNING *`,
-            [...values, id_profile]
-        );
-        return result.rows[0] || null;
-    }
+      [...values, id_profile],
+    );
+    return result.rows[0] || null;
+  }
 
-    static async deleteTravelerProfile(id_profile) {
-        const result = await pool.query(
-            `DELETE FROM traveler_profile 
+  static async deleteTravelerProfile(id_profile) {
+    const result = await pool.query(
+      `DELETE FROM traveler_profile 
              WHERE id_profile = $1 
              RETURNING *`,
-            [id_profile]
-        );
-        return result.rows[0] || null;
-    }
+      [id_profile],
+    );
+    return result.rows[0] || null;
+  }
 }
 
 export default TravelerProfile;
