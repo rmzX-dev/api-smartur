@@ -23,8 +23,6 @@ import TourismEnploymentRouter from './routes/tourismEmploymentRoutes.js';
 import TourismInputRouter from './routes/tourismInputsRoutes.js';
 import UserRouter from './routes/userRoutes.js';
 import SecurityRouter from './routes/securityRoutes.js';
-import { connectRedis } from './config/redis.js';
-
 dotenv.config();
 
 const app = express();
@@ -99,7 +97,6 @@ app.use('/api/v2', TourismInputRouter);
 app.use('/api/v2', UserRouter);
 app.use('/api/v2', SecurityRouter);
 
-await connectRedis();
 
 const PORT = process.env.PORT || 3000;
 
