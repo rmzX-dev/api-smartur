@@ -9,24 +9,13 @@ services:
     envVars:
       - key: PORT
         value: 3000
-
       - key: DATABASE_URL
         sync: false
-
-      - key: REDIS_URL
-        sync: false
-
-      - key: REDIS_PASSWORD
-        sync: false
-
       - key: JWT_SECRET
         generateValue: true
-
       - key: FRONTEND_URL
         sync: false
-
       - key: EMAIL_USER
         sync: false
-
       - key: EMAIL_PASS
         sync: false
