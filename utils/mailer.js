@@ -1,13 +1,17 @@
-import nodemailer from 'nodemailer'
+import nodemailer from 'nodemailer';
 
 export async function sendEmail(to, code) {
     const transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS,
         },
-    })
+    });
+
+    await transporter.verify();
 
     await transporter.sendMail({
         from: process.env.EMAIL_USER,
@@ -32,7 +36,7 @@ export async function sendEmail(to, code) {
                 cid: 'logo',
             },
         ],
-    })
+    });
 }
 
 export async function sendEmailVerification(to, code) {
@@ -42,7 +46,7 @@ export async function sendEmailVerification(to, code) {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS,
         },
-    })
+    });
 
     await transporter.sendMail({
         from: process.env.EMAIL_USER,
@@ -84,5 +88,5 @@ export async function sendEmailVerification(to, code) {
                 cid: 'logo',
             },
         ],
-    })
+    });
 }
