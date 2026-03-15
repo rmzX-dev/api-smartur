@@ -23,8 +23,6 @@ import TourismEnploymentRouter from './routes/tourismEmploymentRoutes.js';
 import TourismInputRouter from './routes/tourismInputsRoutes.js';
 import UserRouter from './routes/userRoutes.js';
 import SecurityRouter from './routes/securityRoutes.js';
-import { connectRedis } from './config/redis.js';
-
 dotenv.config();
 
 const app = express();
@@ -34,8 +32,8 @@ app.disable('x-powered-by');
 
 const allowedOrigins = process.env.FRONTEND_URL
     ? process.env.FRONTEND_URL.split(',')
-        .map((o) => o.trim())
-        .filter(Boolean)
+          .map((o) => o.trim())
+          .filter(Boolean)
     : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
 const corsOptions = {
     origin: (origin, callback) => {
@@ -51,7 +49,7 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 const authLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, 
+    windowMs: 1 * 60 * 1000,
     max: 5,
     standardHeaders: true,
     legacyHeaders: false,
@@ -99,9 +97,14 @@ app.use('/api/v2', TourismInputRouter);
 app.use('/api/v2', UserRouter);
 app.use('/api/v2', SecurityRouter);
 
-await connectRedis();
 
 const PORT = process.env.PORT || 3000;
+
+
+
 app.listen(PORT, () => {
     console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
 });

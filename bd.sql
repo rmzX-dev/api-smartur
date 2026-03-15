@@ -44,12 +44,6 @@ CREATE TRIGGER update_user_updated_at
 -- ÍNDICES PARA MEJORAR RENDIMIENTO
 -- ============================================
 
--- Índice para búsquedas por email (login)
-CREATE INDEX idx_user_email ON "user"(email) WHERE deleted_at IS NULL;
-
--- Índice para filtrar usuarios activos
-CREATE INDEX idx_user_active ON "user"(is_active, deleted_at) WHERE deleted_at IS NULL;
-
 -- Índice para búsquedas por role_id
 CREATE INDEX idx_user_role ON "user"(role_id);
 
