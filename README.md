@@ -1,6 +1,6 @@
 # API SMARTUR
 
-## 🔒 Seguridad
+## Seguridad
 
 Este proyecto implementa mitigaciones para las vulnerabilidades **OWASP Top 10** más críticas:
 
@@ -12,7 +12,7 @@ Este proyecto implementa mitigaciones para las vulnerabilidades **OWASP Top 10**
 | A04 | Diseño Inseguro / Hardening | `helmet` + `express-rate-limit` + `npm audit` |
 | A09 | Registro y Monitoreo | `security_events` en PostgreSQL + Grafana |
 
-📄 **[Ver documentación completa de seguridad → SECURITY.md](./SECURITY.md)**
+ **[Ver documentación completa de seguridad → SECURITY.md](./SECURITY.md)**
 
 ---
 
