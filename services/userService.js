@@ -166,6 +166,8 @@ export class UserService {
             name: user.name,
             email: user.email,
             role_id: user.role_id,
+            photo_url: user.photo_url ?? null,
+            avatar_icon_key: user.avatar_icon_key ?? null,
           },
         },
       };

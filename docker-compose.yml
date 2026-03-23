@@ -50,7 +50,9 @@ services:
             DB_HOST: postgres
             REDIS_URL: redis://:${REDIS_PASSWORD:-redispass}@redis:6379
         ports:
-            - '${PORT:-3000}:3000'
+            # Puerto interno del contenedor: 3000 (API)
+            # Puerto externo configurable para evitar puertos bloqueados en host.
+            - '${API_BIND_IP:-0.0.0.0}:${API_HOST_PORT:-4000}:3000'
         depends_on:
             postgres:
                 condition: service_healthy
@@ -70,12 +72,14 @@ services:
         container_name: smartur-grafana
         restart: unless-stopped
         ports:
-            - '3001:3000'
+            # Puerto interno de Grafana: 3000
+            # Puerto externo configurable para evitar conflictos/bloqueos.
+            - '127.0.0.1:${GRAFANA_HOST_PORT:-4001}:3000'
         environment:
             - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
             - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
             - GF_USERS_ALLOW_SIGN_UP=false
-            - GF_SERVER_ROOT_URL=http://localhost:3001
+            - GF_SERVER_ROOT_URL=http://localhost:${GRAFANA_HOST_PORT:-4001}
         volumes:
             - grafana_data:/var/lib/grafana
         networks:

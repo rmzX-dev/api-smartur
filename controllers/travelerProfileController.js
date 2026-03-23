@@ -1,4 +1,7 @@
+import pool from '../config/db.js';
 import TravelerProfile from '../models/travelerProfileModel.js';
+import User from '../models/userModel.js';
+import { normalizeBirthDateInput, formatBirthDateForApi } from '../utils/birthDate.js';
 
 export class TravelerProfileController {
     static async findAllTravelerProfileController(req, res) {
@@ -157,18 +160,88 @@ export class TravelerProfileController {
     }
 
     static async savePreferences(req, res) {
-        try {
-            const userId = req.user.id;
-            const data = await TravelerProfile.savePreferences(userId, req.body);
+        const userId = req.user.id;
+        const profileBody = { ...req.body };
+        delete profileBody.birth_date;
 
+        let birthDateToSet;
+        const hasBirthKey = Object.prototype.hasOwnProperty.call(req.body, 'birth_date');
+        if (hasBirthKey) {
+            const check = normalizeBirthDateInput(req.body.birth_date);
+            if (!check.ok) {
+                return res.status(400).json({ message: check.error });
+            }
+            birthDateToSet = check.value;
+        }
+
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const data = await TravelerProfile.savePreferences(userId, profileBody, client);
+
+            if (hasBirthKey) {
+                const u = await User.patch(String(userId), { birth_date: birthDateToSet }, client);
+                if (!u) {
+                    await client.query('ROLLBACK');
+                    return res.status(404).json({ message: 'Usuario no encontrado' });
+                }
+            }
+
+            await client.query('COMMIT');
             res.status(200).json({
                 message: 'Preferencias de SMARTUR actualizadas',
                 data: data,
             });
         } catch (error) {
+            await client.query('ROLLBACK').catch(() => {});
             console.error('Error en savePreferences:', error);
             res.status(500).json({
                 message: 'Error al guardar el perfil del viajero',
+                error: error.message,
+            });
+        } finally {
+            client.release();
+        }
+    }
+
+    /** Perfil del viajero del usuario autenticado (app móvil). */
+    static async getMyProfile(req, res) {
+        try {
+            const userId = req.user.id;
+            const user = await User.findById(userId);
+            const birthDate = formatBirthDateForApi(user?.birth_date);
+            const profile = await TravelerProfile.findByUserId(userId);
+            if (!profile) {
+                return res.status(200).json({
+                    message: 'Sin perfil de viajero aún',
+                    travelerProfile: null,
+                    birthDate,
+                });
+            }
+            res.json({
+                message: 'Perfil del viajero',
+                birthDate,
+                travelerProfile: {
+                    id: profile.id_profile,
+                    user_id: profile.user_id,
+                    age: profile.age,
+                    age_range: profile.age_range,
+                    gender: profile.gender,
+                    interests: profile.interests || [],
+                    activity_level: profile.activity_level,
+                    preferred_place: profile.preferred_place,
+                    travel_type: profile.travel_type,
+                    has_accessibility: profile.has_accessibility,
+                    accessibility_detail: profile.accessibility_detail,
+                    has_visited_before: profile.has_visited_before,
+                    restrictions: profile.restrictions,
+                    sustainable_preferences: profile.sustainable_preferences,
+                },
+            });
+        } catch (error) {
+            console.error('Error en getMyProfile:', error);
+            res.status(500).json({
+                message: 'Error al obtener el perfil',
                 error: error.message,
             });
         }

@@ -1,5 +1,8 @@
 BEGIN;
 
+-- Base de datos recomendada: ENCODING UTF8 (evita "?" en lugar de acentos)
+-- Ejemplo: CREATE DATABASE smartur WITH ENCODING 'UTF8' TEMPLATE template0;
+
 CREATE TABLE role (
   role_id SERIAL PRIMARY KEY,
   name VARCHAR(50) NOT NULL
@@ -14,6 +17,9 @@ CREATE TABLE "user" (
   password VARCHAR(255) NOT NULL,
   role_id INT NOT NULL,
   is_active BOOLEAN DEFAULT TRUE,
+  photo_url VARCHAR(512) NULL,
+  avatar_icon_key VARCHAR(64) NULL,
+  birth_date DATE NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (role_id) REFERENCES role(role_id)
@@ -55,6 +61,7 @@ CREATE INDEX idx_user_created_at ON "user"(created_at DESC);
 CREATE TABLE traveler_profile (
   id_profile SERIAL PRIMARY KEY,
   user_id INT UNIQUE NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
   
   -- Datos de Perfil (Step 1)
   age INT,                                    -- Edad exacta
@@ -85,6 +92,7 @@ CREATE INDEX idx_profile_user_id ON traveler_profile(user_id);
 CREATE TABLE location (
   id_location SERIAL PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
   state VARCHAR(100),
   municipality VARCHAR(100),
   latitude DECIMAL(10,6),
@@ -99,10 +107,13 @@ CREATE TABLE tourism_type (
 CREATE TABLE point_of_interest (
   id_point SERIAL PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
   description TEXT,
   id_type INT,
   id_location INT,
   sustainability BOOLEAN DEFAULT FALSE,
+  image_url VARCHAR(500),
+  rating DECIMAL(2,1) DEFAULT 4.0,
   FOREIGN KEY (id_type) REFERENCES tourism_type(id_type),
   FOREIGN KEY (id_location) REFERENCES location(id_location)
 );
@@ -126,6 +137,7 @@ CREATE TABLE tourism_sector (
 CREATE TABLE company (
   id_company SERIAL PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
   address VARCHAR(255),
   phone VARCHAR(50),
   id_sector INT NOT NULL,
@@ -138,6 +150,7 @@ CREATE TABLE company (
 CREATE TABLE tourist_activities (
   id_activity SERIAL PRIMARY KEY,
   id_company INT,
+  is_active BOOLEAN DEFAULT TRUE,
   production_value NUMERIC(12,2),
   environmental_impact TEXT,
   social_impact TEXT,
@@ -203,6 +216,7 @@ CREATE TABLE tourist_service (
     id_location INT,
     service_type VARCHAR(50),
     active BOOLEAN DEFAULT true,
+    image_url VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_company) REFERENCES company(id_company),
     FOREIGN KEY (id_location) REFERENCES location(id_location)
@@ -216,6 +230,7 @@ CREATE TABLE service_evaluation (
     evaluation_date DATE,
     evaluator_id INTEGER REFERENCES "user"(user_id),
     status VARCHAR(20), -- 'in_progress', 'completed', 'reviewed'
+    is_active BOOLEAN DEFAULT TRUE,
     total_score DECIMAL(4,2),
     evaluation_time INTEGER, -- minutes
     general_observations TEXT,
@@ -230,6 +245,7 @@ CREATE TABLE evaluation_detail (
     assigned_score INTEGER, -- 0-4
     id_selected_subcriterion INTEGER REFERENCES evaluation_subcriterion(id_subcriterion),
     observations TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
     attached_evidences JSON, -- URLs of photos, documents, etc.
     created_at TIMESTAMP
 );
@@ -242,7 +258,8 @@ CREATE TABLE service_certification (
     expiration_date DATE,
     issuing_organization VARCHAR(100),
     evidence_url VARCHAR(255),
-    status VARCHAR(20) -- 'active', 'expired', 'under_review'
+    status VARCHAR(20), -- 'active', 'expired', 'under_review'
+    is_active BOOLEAN DEFAULT TRUE
 );
 
 CREATE TABLE login_tokens (
@@ -280,5 +297,176 @@ CREATE TABLE security_events (
 CREATE INDEX idx_security_events_created_at ON security_events(created_at DESC);
 -- Índice para filtrar por tipo de evento
 CREATE INDEX idx_security_events_type ON security_events(event_type);
+
+-- ============================================
+-- App móvil: favoritos, historial de visitas, comunidad
+-- ============================================
+CREATE TABLE user_favorite (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES "user"(user_id) ON DELETE CASCADE,
+  place_kind VARCHAR(3) NOT NULL CHECK (place_kind IN ('svc', 'poi')),
+  place_id INT NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  deleted_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, place_kind, place_id)
+);
+CREATE INDEX idx_user_favorite_user ON user_favorite(user_id);
+
+CREATE TABLE user_visit (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES "user"(user_id) ON DELETE CASCADE,
+  place_kind VARCHAR(3) NOT NULL CHECK (place_kind IN ('svc', 'poi')),
+  place_id INT NOT NULL,
+  visited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_user_visit_user_time ON user_visit(user_id, visited_at DESC);
+
+CREATE TABLE community_post (
+  id_post SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES "user"(user_id) ON DELETE CASCADE,
+  caption TEXT NOT NULL DEFAULT '',
+  image_url VARCHAR(512) NULL,
+  place_kind VARCHAR(3) NOT NULL CHECK (place_kind IN ('svc', 'poi')),
+  place_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_community_post_created ON community_post(created_at DESC);
+
+-- ============================================
+-- SEEDS DEMO (explore + usuarios de prueba + posts)
+-- Contraseña ambos usuarios: Password1a
+-- ============================================
+INSERT INTO tourism_type (name) VALUES
+  ('Naturaleza'),
+  ('Cultura'),
+  ('Gastronomía');
+
+INSERT INTO location (name, state, municipality, latitude, longitude) VALUES
+  ('Xalapa', 'Veracruz', 'Xalapa', 19.531240, -96.915890),
+  ('Coatepec', 'Veracruz', 'Coatepec', 19.451800, -96.959700),
+  ('Córdoba', 'Veracruz', 'Córdoba', 18.894200, -96.934700);
+
+INSERT INTO tourism_sector (name, description) VALUES
+  ('Hotelería', 'Hospedaje'),
+  ('Restaurantes', 'Gastronomía'),
+  ('Turismo de naturaleza', 'Actividades al aire libre');
+
+INSERT INTO company (name, address, phone, id_sector, id_location) VALUES
+  ('Hotel Mirador', 'Av. Principal 100', '2288110011', 1, 1),
+  ('Café La Orquídea', 'Centro 20', '2288220022', 2, 2),
+  ('Eco Tours Veracruz', 'Bosque 5', '2288330033', 3, 2);
+
+INSERT INTO tourist_service (name, description, id_company, id_location, service_type, active, image_url) VALUES
+  ('Hotel Mirador Xalapa', 'Habitaciones con vista a la ciudad.', 1, 1, 'hotel', true,
+   'https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&w=800'),
+  ('Café Orquídea Coatepec', 'Café de la región y postres artesanales.', 2, 2, 'restaurant', true,
+   'https://images.pexels.com/photos/302899/pexels-photo-302899.jpeg?auto=compress&w=800'),
+  ('Senderismo Macuiltépetl', 'Salida guiada al parque.', 3, 1, 'tour', true,
+   'https://images.pexels.com/photos/417074/pexels-photo-417074.jpeg?auto=compress&w=800');
+
+INSERT INTO point_of_interest (name, description, id_type, id_location, sustainability, image_url, rating) VALUES
+  ('Parque Macuiltépetl', 'Mirador y áreas verdes en Xalapa.', 1, 1, true,
+   'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?auto=compress&w=800', 4.6),
+  ('Museo Interactivo', 'Historia y ciencia para toda la familia.', 2, 1, false,
+   'https://images.pexels.com/photos/4603765/pexels-photo-4603765.jpeg?auto=compress&w=800', 4.5),
+  ('Cascada de Texolo', 'Cascada cerca de Xico, ideal para fotos.', 1, 2, true,
+   'https://images.pexels.com/photos/237272/pexels-photo-237272.jpeg?auto=compress&w=800', 4.8),
+  ('Ex-Hacienda de Toxpan', 'Arquitectura colonial y jardines.', 2, 3, false,
+   'https://images.pexels.com/photos/67468/pexels-photo-67468.jpeg?auto=compress&w=800', 4.3);
+
+-- bcrypt hash for password: Password1a
+INSERT INTO "user" (name, email, password, role_id, photo_url, avatar_icon_key) VALUES
+  ('Turista Demo', 'turista@smartur.demo',
+   '$2b$10$HQJ66fgUzg5nFEHnzzYrb.F/UQehNmboHq.FemnPRLUEJ0hLQjthe', 2, NULL, 'hiking'),
+  ('María Comunidad', 'maria@smartur.demo',
+   '$2b$10$HQJ66fgUzg5nFEHnzzYrb.F/UQehNmboHq.FemnPRLUEJ0hLQjthe', 2, NULL, 'museum');
+
+INSERT INTO community_post (user_id, caption, image_url, place_kind, place_id) VALUES
+  (2, 'Increíble amanecer en la montaña — altas montañas de Veracruz.',
+   'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?auto=compress&w=800', 'poi', 1),
+  (1, 'Recomiendo el museo interactivo en Xalapa, ideal en familia.', NULL, 'poi', 2),
+  (2, 'El café de Coatepec no tiene comparación.', 
+   'https://images.pexels.com/photos/302899/pexels-photo-302899.jpeg?auto=compress&w=800', 'svc', 2);
+
+-- Altas Montañas: Orizaba y Fortín (app Home ya no usa mocks)
+INSERT INTO location (name, state, municipality, latitude, longitude) VALUES
+  ('Orizaba', 'Veracruz', 'Orizaba', 18.849100, -97.105100),
+  ('Fortín de las Flores', 'Veracruz', 'Fortín', 18.901200, -96.998500);
+
+INSERT INTO company (name, address, phone, id_sector, id_location) VALUES
+  ('Hotel Altas Montañas Orizaba', 'Madero 123', '2721001001', 1, 4),
+  ('Restaurante El Pico', 'Sur 45', '2721001002', 2, 4),
+  ('Aventura Pico Tours', 'Norte 10', '2721001003', 3, 4),
+  ('Posada Fortín', 'Principal 200', '2731002001', 1, 5);
+
+INSERT INTO tourist_service (name, description, id_company, id_location, service_type, active, image_url) VALUES
+  ('Hotel Altas Montañas', 'Vista al Pico de Orizaba.', 4, 4, 'hotel', true,
+   'https://images.pexels.com/photos/164595/pexels-photo-164595.jpeg?auto=compress&w=800'),
+  ('El Pico Restaurante', 'Cocina regional y café.', 5, 4, 'restaurant', true,
+   'https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&w=800'),
+  ('Tour Pico de Orizaba', 'Excursión a refugio y zona de montaña.', 6, 4, 'tour', true,
+   'https://images.pexels.com/photos/417074/pexels-photo-417074.jpeg?auto=compress&w=800'),
+  ('Posada Fortín Plaza', 'Hospedaje céntrico en Fortín.', 7, 5, 'hotel', true,
+   'https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&w=800');
+
+INSERT INTO point_of_interest (name, description, id_type, id_location, sustainability, image_url, rating) VALUES
+  ('Pico de Orizaba', 'Volcán y zona de montaña.', 1, 4, true,
+   'https://images.pexels.com/photos/417074/pexels-photo-417074.jpeg?auto=compress&w=800', 4.9),
+  ('Palacio de Hierro Orizaba', 'Monumento histórico.', 2, 4, false,
+   'https://images.pexels.com/photos/67468/pexels-photo-67468.jpeg?auto=compress&w=800', 4.7),
+  ('Jardín Botánico Fortín', 'Flores y áreas verdes.', 1, 5, true,
+   'https://images.pexels.com/photos/1307698/pexels-photo-1307698.jpeg?auto=compress&w=800', 4.5);
+
+-- Córdoba: más servicios y puntos (filtros hotel / restaurante / tour / museo / naturaleza)
+INSERT INTO company (name, address, phone, id_sector, id_location) VALUES
+  ('Hotel Gobernador Córdoba', 'Av. 1 norte 64', '2717123456', 1, 3),
+  ('Casa Revilla Gastronomía', 'Av. 3 norte 12', '2717123457', 2, 3),
+  ('Experiencias Los Portales', 'Portal de Gloria', '2717123458', 3, 3);
+
+INSERT INTO tourist_service (name, description, id_company, id_location, service_type, active, image_url) VALUES
+  ('Hotel Gobernador Córdoba', 'Hospedaje cerca del zócalo y Los Portales.', 8, 3, 'hotel', true,
+   'https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&w=800'),
+  ('Restaurante Casa Revilla', 'Alta cocina veracruzana en el centro histórico.', 9, 3, 'restaurant', true,
+   'https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&w=800'),
+  ('Tour Ciudad de los 30 Caballeros', 'Recorrido colonial, leyendas y barrio de La Villa.', 10, 3, 'tour', true,
+   'https://images.pexels.com/photos/2901209/pexels-photo-2901209.jpeg?auto=compress&w=800');
+
+INSERT INTO point_of_interest (name, description, id_type, id_location, sustainability, image_url, rating) VALUES
+  ('Catedral de Córdoba', 'Templo barroco del siglo XVII, Patrimonio de la Humanidad.', 2, 3, false,
+   'https://images.pexels.com/photos/4603765/pexels-photo-4603765.jpeg?auto=compress&w=800', 4.8),
+  ('Los Portales de Córdoba', 'Arcos, cafés y vida cotidiana en el zócalo.', 3, 3, false,
+   'https://images.pexels.com/photos/67468/pexels-photo-67468.jpeg?auto=compress&w=800', 4.6),
+  ('Parque Ecológico Cerro del Metate', 'Senderos, mirador y áreas verdes.', 1, 3, true,
+   'https://images.pexels.com/photos/417074/pexels-photo-417074.jpeg?auto=compress&w=800', 4.5),
+  ('Municipio de La Villa', 'Barrio tradicional con arquitectura colonial.', 2, 3, false,
+   'https://images.pexels.com/photos/248771/pexels-photo-248771.jpeg?auto=compress&w=800', 4.4);
+
+-- Xico (nueva ciudad): Pueblo Mágico, variedad de tipos para filtros
+INSERT INTO location (name, state, municipality, latitude, longitude) VALUES
+  ('Xico', 'Veracruz', 'Xico', 19.421800, -97.010200);
+
+INSERT INTO company (name, address, phone, id_sector, id_location) VALUES
+  ('Hotel Posada Xico', 'Morelos 15', '2281234501', 1, 6),
+  ('Fonda Tradicional Xico', 'Juárez 8', '2281234502', 2, 6),
+  ('Xico Aventura en la Niebla', 'Carretera a Texolo km 1', '2281234503', 3, 6);
+
+INSERT INTO tourist_service (name, description, id_company, id_location, service_type, active, image_url) VALUES
+  ('Hotel Posada Xico', 'Descanso en el corazón del Pueblo Mágico.', 11, 6, 'hotel', true,
+   'https://images.pexels.com/photos/164595/pexels-photo-164595.jpeg?auto=compress&w=800'),
+  ('Fonda Tradicional Xico', 'Mole, chiles en nogada y dulces regionales.', 12, 6, 'restaurant', true,
+   'https://images.pexels.com/photos/302899/pexels-photo-302899.jpeg?auto=compress&w=800'),
+  ('Tour Cascada de Texolo y miradores', 'Salida guiada desde Xico.', 13, 6, 'tour', true,
+   'https://images.pexels.com/photos/237272/pexels-photo-237272.jpeg?auto=compress&w=800');
+
+INSERT INTO point_of_interest (name, description, id_type, id_location, sustainability, image_url, rating) VALUES
+  ('Cascada de Texolo', 'Salto de agua emblemático; acceso desde Xico.', 1, 6, true,
+   'https://images.pexels.com/photos/237272/pexels-photo-237272.jpeg?auto=compress&w=800', 4.9),
+  ('Santuario de María Magdalena', 'Templo principal y fiestas patronales.', 2, 6, false,
+   'https://images.pexels.com/photos/236146/pexels-photo-236146.jpeg?auto=compress&w=800', 4.7),
+  ('Mercado de Xico', 'Gastronomía local y artesanías.', 3, 6, false,
+   'https://images.pexels.com/photos/264636/pexels-photo-264636.jpeg?auto=compress&w=800', 4.5),
+  ('Mirador de la Niebla', 'Vistas a cafetales y neblina matutina.', 1, 6, true,
+   'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?auto=compress&w=800', 4.6);
 
 COMMIT;

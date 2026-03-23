@@ -8,6 +8,8 @@ class TouristActivities {
         const conditions = [];
         let index = 1;
 
+        conditions.push(`is_active = TRUE`);
+
         if (id_company !== null) {
             conditions.push(`id_company = $${index}`);
             values.push(id_company);
@@ -48,7 +50,7 @@ class TouristActivities {
         const result = await pool.query(
             `SELECT id_activity, id_company, production_value, environmental_impact, social_impact
      FROM tourist_activities
-     WHERE id_activity = $1`,
+     WHERE id_activity = $1 AND is_active = TRUE`,
             [id_activity]
         );
         return result.rows[0] || null;
@@ -95,7 +97,7 @@ class TouristActivities {
         const result = await pool.query(
             `UPDATE tourist_activities
             SET ${fields.join(', ')}
-            WHERE id_activity = $${index}
+            WHERE id_activity = $${index} AND is_active = TRUE
             RETURNING id_activity, id_company, production_value, environmental_impact, social_impact`,
             [...values, id_activity]
         );
@@ -104,8 +106,9 @@ class TouristActivities {
 
     static async deleteTouristActivities(id_activity) {
         const result = await pool.query(
-            `DELETE FROM tourist_activities
-            WHERE id_activity = $1
+            `UPDATE tourist_activities
+            SET is_active = FALSE
+            WHERE id_activity = $1 AND is_active = TRUE
             RETURNING id_activity, id_company, production_value, environmental_impact, social_impact`,
             [id_activity]
         );

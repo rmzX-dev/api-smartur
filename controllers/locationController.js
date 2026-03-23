@@ -18,6 +18,7 @@ class LocationController {
                 currentPage: result.currentPage,
                 locations: result.locations.map((loc) => ({
                     id: loc.id_location,
+                    id_location: loc.id_location,
                     name: loc.name,
                     state: loc.state,
                     municipality: loc.municipality,
@@ -46,6 +47,7 @@ class LocationController {
                 message: 'Ubicación obtenida exitosamente',
                 location: {
                     id: location.id_location,
+                    id_location: location.id_location,
                     name: location.name,
                     state: location.state,
                     municipality: location.municipality,

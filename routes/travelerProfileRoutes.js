@@ -5,6 +5,9 @@ import { requireRole } from '../middleware/rbacMiddleware.js';
 
 const router = express.Router();
 
+// Perfil del usuario autenticado (debe ir antes de /profiles/:id_profile)
+router.get('/profiles/me', verifyToken, travelerProfileController.getMyProfile);
+
 // Listar todos los perfiles: solo admin
 router.get(
     '/profiles',

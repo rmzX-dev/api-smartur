@@ -11,8 +11,10 @@ WORKDIR /app
 # Copiar solo manifiestos para aprovechar cache de capas
 COPY package.json package-lock.json* ./
 
-# Instalar solo dependencias de producción
-RUN npm ci --omit=dev
+# Instalar solo dependencias de producción.
+# Nota: `npm ci` requiere que `package.json` y `package-lock.json` estén perfectamente sincronizados,
+# y este proyecto parece manejar `pnpm-lock.yaml`. Usamos `npm install` para evitar fallos de build.
+RUN npm install --omit=dev
 
 # ── Etapa 2: Imagen Final ──────────────────────────────────
 FROM node:22-alpine AS runner

@@ -77,7 +77,7 @@ class Template {
 
     static async deleteTemplate(id_template) {
         const result = await pool.query(
-            'DELETE FROM evaluation_template WHERE id_template = $1 RETURNING *',
+            'UPDATE evaluation_template SET active = FALSE WHERE id_template = $1 AND active = TRUE RETURNING *',
             [id_template]
         );
         return result.rows[0] || null;

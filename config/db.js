@@ -10,6 +10,8 @@ const pool = new Pool(
         ? {
             connectionString: process.env.DATABASE_URL,
             ssl: { rejectUnauthorized: false },
+            // Evita caracteres como á/ó mostrándose como "?" (encoding)
+            options: '-c client_encoding=UTF8',
         }
         : {
             user: process.env.DB_USER,
@@ -18,8 +20,13 @@ const pool = new Pool(
             password: process.env.DB_PASSWORD,
             port: process.env.DB_PORT,
             ssl: false,
+            options: '-c client_encoding=UTF8',
         }
 );
+
+pool.on('connect', (client) => {
+    client.query("SET client_encoding TO 'UTF8'").catch(() => {});
+});
 
 pool.connect()
     .then(() => console.log('PostgreSQL conectado'))

@@ -82,7 +82,7 @@ class Criterion {
 
     static async deleteCriterion(id_criterion) {
         const result = await pool.query(
-            'DELETE FROM evaluation_criterion WHERE id_criterion = $1 RETURNING *',
+            'UPDATE evaluation_criterion SET active = FALSE WHERE id_criterion = $1 AND active = TRUE RETURNING *',
             [id_criterion]
         );
         return result.rows[0] || null;

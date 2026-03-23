@@ -12,6 +12,7 @@ import touristActivitiesRoutes from './routes/touristActivitiesRoutes.js';
 import templateRoutes from './routes/evaluationTemplatesRoutes.js';
 import travelerProfileRoutes from './routes/travelerProfileRoutes.js';
 import locationRoutes from './routes/locationRoutes.js';
+import exploreRoutes from './routes/exploreRoutes.js';
 import criterionRoutes from './routes/criterionRoutes.js';
 import touristServicesRoutes from './routes/touristServicesRoutes.js';
 import serviceEvaluationRouter from './routes/serviceEvaluationRoutes.js';
@@ -22,12 +23,26 @@ import tourismExpenditureRouter from './routes/tourismExpenditureRoutes.js';
 import TourismEnploymentRouter from './routes/tourismEmploymentRoutes.js';
 import TourismInputRouter from './routes/tourismInputsRoutes.js';
 import UserRouter from './routes/userRoutes.js';
+import UserContentRouter from './routes/userContentRoutes.js';
 import SecurityRouter from './routes/securityRoutes.js';
 dotenv.config();
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(helmet());
+app.use(
+    helmet({
+        contentSecurityPolicy: {
+            useDefaults: true,
+            directives: {
+                // Swagger UI usa scripts inline para inicialización.
+                'script-src': ["'self'", "'unsafe-inline'"],
+                'script-src-attr': ["'unsafe-inline'"],
+                // En entorno local por IP (http://192.168.x.x) bloquear upgrade a https evita fallos de carga.
+                'upgrade-insecure-requests': null,
+            },
+        },
+    })
+);
 app.disable('x-powered-by');
 
 const allowedOrigins = process.env.FRONTEND_URL
@@ -37,9 +52,15 @@ const allowedOrigins = process.env.FRONTEND_URL
     : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
 const corsOptions = {
     origin: (origin, callback) => {
+        const isLocalNetworkOrigin =
+            /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin || '') ||
+            /^https?:\/\/192\.168\.\d+\.\d+(:\d+)?$/.test(origin || '') ||
+            /^https?:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/.test(origin || '') ||
+            /^https?:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(:\d+)?$/.test(origin || '');
+
         // Permitir requests sin Origin (como Flutter)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) return callback(null, true);
+        if (allowedOrigins.includes(origin) || isLocalNetworkOrigin) return callback(null, true);
         return callback(new Error(`Origin ${origin} no permitido por CORS`));
     },
     credentials: true,
@@ -47,6 +68,28 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Multipart lo gestiona multer por ruta; si multer no parsea (p. ej. type-is sin "body") req.body seguía undefined.
+app.use((req, res, next) => {
+    if (
+        (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') &&
+        (req.body === undefined || req.body === null)
+    ) {
+        req.body = {};
+    }
+    next();
+});
+
+// JSON en UTF-8 explícito (acentos correctos en app móvil / clientes)
+app.use('/api/v2', (req, res, next) => {
+    const sendJson = res.json.bind(res);
+    res.json = (body) => {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return sendJson(body);
+    };
+    next();
+});
 
 const authLimiter = rateLimit({
     windowMs: 1 * 60 * 1000,
@@ -64,11 +107,25 @@ app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/api-docs.json', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+});
+
+app.use(
+    '/api-docs',
+    swaggerUi.serveFiles(swaggerSpec),
+    swaggerUi.setup(swaggerSpec, {
+        swaggerOptions: {
+            url: '/api-docs.json',
+        },
+        customSiteTitle: 'SMARTUR API Docs',
+    })
+);
 
 app.use(
     '/security-docs',
-    swaggerUi.serve,
+    swaggerUi.serveFiles(securitySwaggerSpec),
     swaggerUi.setup(securitySwaggerSpec, {
         swaggerOptions: {
             defaultModelsExpandDepth: -1,
@@ -85,6 +142,7 @@ app.use('/api/v2', touristActivitiesRoutes);
 app.use('/api/v2', templateRoutes);
 app.use('/api/v2', travelerProfileRoutes);
 app.use('/api/v2', locationRoutes);
+app.use('/api/v2', exploreRoutes);
 app.use('/api/v2', criterionRoutes);
 app.use('/api/v2', touristServicesRoutes);
 app.use('/api/v2', serviceEvaluationRouter);
@@ -95,6 +153,7 @@ app.use('/api/v2', tourismExpenditureRouter);
 app.use('/api/v2', TourismEnploymentRouter);
 app.use('/api/v2', TourismInputRouter);
 app.use('/api/v2', UserRouter);
+app.use('/api/v2', UserContentRouter);
 app.use('/api/v2', SecurityRouter);
 
 

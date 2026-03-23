@@ -8,6 +8,8 @@ class Company {
         const conditions = [];
         let index = 1;
 
+        conditions.push(`is_active = TRUE`);
+
         if (search) {
             conditions.push(`name ILIKE $${index}`);
             values.push(`%${search}%`);
@@ -58,7 +60,7 @@ class Company {
     static async findById(id_company) {
         const result = await pool.query(
             `SELECT * FROM company 
-         WHERE id_company = $1`,
+         WHERE id_company = $1 AND is_active = TRUE`,
             [id_company]
         );
         return result.rows[0] || null;
@@ -116,7 +118,7 @@ class Company {
         const result = await pool.query(
             `UPDATE company
          SET ${fields.join(', ')}
-         WHERE id_company = $${index}
+         WHERE id_company = $${index} AND is_active = TRUE
          RETURNING *`,
             [...values, id_company]
         );
@@ -126,8 +128,9 @@ class Company {
 
     static async delete(id_company) {
         const result = await pool.query(
-            `DELETE FROM company 
-         WHERE id_company = $1 
+            `UPDATE company
+         SET is_active = FALSE
+         WHERE id_company = $1 AND is_active = TRUE
          RETURNING *`,
             [id_company]
         );

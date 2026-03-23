@@ -14,6 +14,8 @@ class TravelerProfile {
     const conditions = [];
     let index = 1;
 
+    conditions.push(`is_active = TRUE`);
+
     if (search) {
       conditions.push(`user_id::TEXT ILIKE $${index}`);
       values.push(`%${search}%`);
@@ -64,7 +66,7 @@ class TravelerProfile {
 
   static async findTravelerProfileById(id_profile) {
     const result = await pool.query(
-      `SELECT * FROM traveler_profile WHERE id_profile = $1`,
+      `SELECT * FROM traveler_profile WHERE id_profile = $1 AND is_active = TRUE`,
       [id_profile],
     );
     return result.rows[0] || null;
@@ -72,13 +74,13 @@ class TravelerProfile {
 
   static async findByUserId(user_id) {
     const result = await pool.query(
-      `SELECT * FROM traveler_profile WHERE user_id = $1`,
+      `SELECT * FROM traveler_profile WHERE user_id = $1 AND is_active = TRUE`,
       [user_id],
     );
     return result.rows[0] || null;
   }
 
-  static async savePreferences(userId, data) {
+  static async savePreferences(userId, data, executor = pool) {
     const {
       age,
       age_range,
@@ -98,11 +100,12 @@ class TravelerProfile {
             INSERT INTO traveler_profile 
                 (user_id, age, age_range, gender, interests, activity_level, 
                 preferred_place, travel_type, has_accessibility, 
-                accessibility_detail, has_visited_before, restrictions, 
+                accessibility_detail, has_visited_before, restrictions,
                 sustainable_preferences)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             ON CONFLICT (user_id) 
             DO UPDATE SET 
+                is_active = TRUE,
                 age = EXCLUDED.age,
                 age_range = EXCLUDED.age_range,
                 gender = EXCLUDED.gender,
@@ -134,7 +137,7 @@ class TravelerProfile {
       sustainable_preferences,
     ];
 
-    const result = await pool.query(query, values);
+    const result = await executor.query(query, values);
     return result.rows[0];
   }
 
@@ -214,7 +217,7 @@ class TravelerProfile {
     const result = await pool.query(
       `UPDATE traveler_profile 
              SET ${fields.join(", ")} 
-             WHERE id_profile = $${index} 
+             WHERE id_profile = $${index} AND is_active = TRUE
              RETURNING *`,
       [...values, id_profile],
     );
@@ -223,8 +226,9 @@ class TravelerProfile {
 
   static async deleteTravelerProfile(id_profile) {
     const result = await pool.query(
-      `DELETE FROM traveler_profile 
-             WHERE id_profile = $1 
+      `UPDATE traveler_profile
+             SET is_active = FALSE
+             WHERE id_profile = $1 AND is_active = TRUE
              RETURNING *`,
       [id_profile],
     );

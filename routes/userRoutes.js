@@ -3,6 +3,7 @@ import UserController from "../controllers/userController.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
 import { requireRole } from "../middleware/rbacMiddleware.js";
 import { verifyOwnership } from "../middleware/ownershipMiddleware.js";
+import upload from "../middleware/multer.js";
 
 const router = express.Router();
 
@@ -36,5 +37,14 @@ router.delete(
 
 // Ownership: solo el propio usuario o admin puede actualizar su perfil
 router.patch("/users/:id", verifyToken, verifyOwnership, UserController.patch);
+
+// Subida de avatar (multipart, campo "avatar"); requiere Cloudinary configurado
+router.post(
+  "/users/:id/avatar",
+  verifyToken,
+  verifyOwnership,
+  upload.single("avatar"),
+  UserController.uploadAvatar,
+);
 
 export default router;

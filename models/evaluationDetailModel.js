@@ -13,6 +13,8 @@ class EvaluationDetail {
         const conditions = [];
         let index = 1;
 
+        conditions.push(`is_active = TRUE`);
+
         if (id_evaluation !== null) {
             conditions.push(`id_evaluation = $${index}`);
             values.push(id_evaluation);
@@ -55,7 +57,7 @@ class EvaluationDetail {
     }
 
     static async findEvaluationDetailById(id_detail) {
-        const result = await pool.query('SELECT * FROM evaluation_detail WHERE id_detail = $1', [
+        const result = await pool.query('SELECT * FROM evaluation_detail WHERE id_detail = $1 AND is_active = TRUE', [
             id_detail,
         ]);
         return result.rows[0] || null;
@@ -66,7 +68,7 @@ class EvaluationDetail {
             `SELECT ed.*, ec.name as criterion_name 
              FROM evaluation_detail ed
              INNER JOIN evaluation_criterion ec ON ed.id_criterion = ec.id_criterion
-             WHERE ed.id_evaluation = $1`,
+             WHERE ed.id_evaluation = $1 AND ed.is_active = TRUE`,
             [id_evaluation]
         );
         return result.rows;
@@ -156,7 +158,7 @@ class EvaluationDetail {
         const result = await pool.query(
             `UPDATE evaluation_detail 
             SET ${fields.join(', ')}
-            WHERE id_detail = $${index} 
+            WHERE id_detail = $${index} AND is_active = TRUE
             RETURNING *`,
             [...values, id_detail]
         );
@@ -165,7 +167,7 @@ class EvaluationDetail {
 
     static async deleteEvaluationDetail(id_detail) {
         const result = await pool.query(
-            'DELETE FROM evaluation_detail WHERE id_detail = $1 RETURNING *',
+            'UPDATE evaluation_detail SET is_active = FALSE WHERE id_detail = $1 AND is_active = TRUE RETURNING *',
             [id_detail]
         );
         return result.rows[0] || null;

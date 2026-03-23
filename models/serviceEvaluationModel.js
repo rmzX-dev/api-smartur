@@ -14,6 +14,8 @@ class ServiceEvaluation {
         const conditions = [];
         let index = 1;
 
+        conditions.push(`e.is_active = TRUE`);
+
         if (id_service !== null) {
             conditions.push(`e.id_service = $${index}`);
             values.push(id_service);
@@ -78,7 +80,7 @@ class ServiceEvaluation {
             FROM service_evaluation e
             INNER JOIN tourist_service s ON e.id_service = s.id_service
             INNER JOIN company c ON s.id_company = c.id_company
-            WHERE e.id_evaluation = $1
+            WHERE e.id_evaluation = $1 AND e.is_active = TRUE
         `;
         const result = await pool.query(query, [id_evaluation]);
         return result.rows[0];
@@ -215,7 +217,7 @@ class ServiceEvaluation {
             SET id_service = $1, id_template = $2, evaluation_date = $3, evaluator_id = $4, 
                 status = $5, total_score = $6, evaluation_time = $7, general_observations = $8, 
                 updated_at = NOW() 
-            WHERE id_evaluation = $9 
+            WHERE id_evaluation = $9 AND is_active = TRUE
             RETURNING *`,
             [
                 id_service,
@@ -234,7 +236,7 @@ class ServiceEvaluation {
 
     static async deleteServiceEvaluation(id_evaluation) {
         const result = await pool.query(
-            'DELETE FROM service_evaluation WHERE id_evaluation = $1 RETURNING *',
+            "UPDATE service_evaluation SET is_active = FALSE, status = 'deleted', updated_at = NOW() WHERE id_evaluation = $1 AND is_active = TRUE RETURNING *",
             [id_evaluation]
         );
         return result.rows[0];

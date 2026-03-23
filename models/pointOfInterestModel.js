@@ -15,6 +15,8 @@ class PointOfInterest {
         const conditions = [];
         let index = 1;
 
+        conditions.push(`is_active = TRUE`);
+
         if (search) {
             conditions.push(`(name ILIKE $${index} OR description ILIKE $${index})`);
             values.push(`%${search}%`);
@@ -69,27 +71,27 @@ class PointOfInterest {
     }
 
     static async findById(id_point) {
-        const result = await pool.query('SELECT * FROM point_of_interest WHERE id_point = $1', [
+        const result = await pool.query('SELECT * FROM point_of_interest WHERE id_point = $1 AND is_active = TRUE', [
             id_point,
         ]);
         return result.rows[0] || null;
     }
 
     static async create(data) {
-        const { name, description, id_type, id_location, sustainability } = data;
+        const { name, description, id_type, id_location, sustainability, image_url, rating } = data;
 
         const result = await pool.query(
             `INSERT INTO point_of_interest 
-            (name, description, id_type, id_location, sustainability) 
-            VALUES ($1, $2, $3, $4, $5) 
+            (name, description, id_type, id_location, sustainability, image_url, rating) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7) 
             RETURNING *`,
-            [name, description, id_type, id_location, sustainability]
+            [name, description, id_type, id_location, sustainability ?? false, image_url || null, rating ?? 4.0]
         );
         return result.rows[0];
     }
 
     static async update(id_point, data) {
-        const { name, description, id_type, id_location, sustainability } = data;
+        const { name, description, id_type, id_location, sustainability, image_url, rating } = data;
 
         const fields = [];
         const values = [];
@@ -115,13 +117,21 @@ class PointOfInterest {
             fields.push(`sustainability = $${index++}`);
             values.push(sustainability);
         }
+        if (image_url !== undefined) {
+            fields.push(`image_url = $${index++}`);
+            values.push(image_url);
+        }
+        if (rating !== undefined) {
+            fields.push(`rating = $${index++}`);
+            values.push(rating);
+        }
 
         if (fields.length === 0) return null;
 
         const result = await pool.query(
             `UPDATE point_of_interest 
             SET ${fields.join(', ')}
-            WHERE id_point = $${index} 
+            WHERE id_point = $${index} AND is_active = TRUE
             RETURNING *`,
             [...values, id_point]
         );
@@ -130,7 +140,7 @@ class PointOfInterest {
 
     static async delete(id_point) {
         const result = await pool.query(
-            'DELETE FROM point_of_interest WHERE id_point = $1 RETURNING *',
+            'UPDATE point_of_interest SET is_active = FALSE WHERE id_point = $1 AND is_active = TRUE RETURNING *',
             [id_point]
         );
         return result.rows[0] || null;

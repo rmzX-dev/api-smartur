@@ -14,6 +14,8 @@ class ServiceCertification {
         const conditions = [];
         let index = 1;
 
+        conditions.push(`is_active = TRUE`);
+
         if (id_service !== null) {
             conditions.push(`id_service = $${index}`);
             values.push(id_service);
@@ -63,7 +65,7 @@ class ServiceCertification {
 
     static async findCertificationById(id_certification) {
         const result = await pool.query(
-            'SELECT * FROM service_certification WHERE id_certification = $1',
+            'SELECT * FROM service_certification WHERE id_certification = $1 AND is_active = TRUE',
             [id_certification]
         );
         return result.rows[0] || null;
@@ -147,7 +149,7 @@ class ServiceCertification {
         const result = await pool.query(
             `UPDATE service_certification 
             SET ${fields.join(', ')}
-            WHERE id_certification = $${index} 
+            WHERE id_certification = $${index} AND is_active = TRUE
             RETURNING *`,
             [...values, id_certification]
         );
@@ -156,7 +158,7 @@ class ServiceCertification {
 
     static async deleteCertification(id_certification) {
         const result = await pool.query(
-            'DELETE FROM service_certification WHERE id_certification = $1 RETURNING *',
+            "UPDATE service_certification SET is_active = FALSE, status = 'inactive' WHERE id_certification = $1 AND is_active = TRUE RETURNING *",
             [id_certification]
         );
         return result.rows[0] || null;

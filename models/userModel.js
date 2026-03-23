@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import bcrypt from 'bcrypt';
+import { normalizeEmail } from '../validators/userValidators.js';
 
 const SALT_ROUNDS = 10;
 
@@ -63,7 +64,10 @@ class User {
 
     static async findByEmail(email) {
         try {
-            const result = await pool.query('SELECT * FROM "user" WHERE email = $1', [email]);
+            const normalizedEmail = normalizeEmail(email);
+            const result = await pool.query('SELECT * FROM "user" WHERE LOWER(email) = LOWER($1)', [
+                normalizedEmail,
+            ]);
             return result.rows[0];
         } catch (error) {
             throw new Error('Error al buscar usuario');
@@ -71,14 +75,15 @@ class User {
     }
 
     static async create(data) {
-        const { name, email, password, role_id } = data;
+        const { name, email, password, role_id, photo_url = null, avatar_icon_key = null } = data;
+        const normalizedEmail = normalizeEmail(email);
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
         const result = await pool.query(
-            `INSERT INTO "user" (name, email, password, role_id) 
-             VALUES ($1, $2, $3, $4) 
+            `INSERT INTO "user" (name, email, password, role_id, photo_url, avatar_icon_key) 
+             VALUES ($1, $2, $3, $4, $5, $6) 
              RETURNING *`,
-            [name, email, hashedPassword, role_id]
+            [name, normalizedEmail, hashedPassword, role_id, photo_url, avatar_icon_key]
         );
 
         return result.rows[0];
@@ -95,39 +100,52 @@ class User {
         return result.rows[0] || null;
     }
 
-    static async patch(user_id, data) {
-        const { name, password, role_id, is_active } = data;
-
+    static async patch(user_id, data, executor = pool) {
         const fields = [];
         const values = [];
         let index = 1;
 
-        if (name !== undefined) {
+        if (data.name !== undefined) {
             fields.push(`name = $${index++}`);
-            values.push(name);
+            values.push(data.name);
         }
 
-        if (password !== undefined) {
-            const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+        if (data.password !== undefined) {
+            const hashedPassword = await bcrypt.hash(data.password, SALT_ROUNDS);
             fields.push(`password = $${index++}`);
             values.push(hashedPassword);
         }
 
-        if (role_id !== undefined) {
+        if (data.role_id !== undefined) {
             fields.push(`role_id = $${index++}`);
-            values.push(role_id);
+            values.push(data.role_id);
         }
 
-        if (is_active !== undefined) {
+        if (data.is_active !== undefined) {
             fields.push(`is_active = $${index++}`);
-            values.push(is_active);
+            values.push(data.is_active);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(data, 'photo_url')) {
+            fields.push(`photo_url = $${index++}`);
+            values.push(data.photo_url);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(data, 'avatar_icon_key')) {
+            fields.push(`avatar_icon_key = $${index++}`);
+            values.push(data.avatar_icon_key);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(data, 'birth_date')) {
+            fields.push(`birth_date = $${index++}`);
+            values.push(data.birth_date);
         }
 
         if (fields.length === 0) {
             return null;
         }
 
-        const result = await pool.query(
+        const result = await executor.query(
             `UPDATE "user"
          SET ${fields.join(', ')}
          WHERE user_id = $${index}

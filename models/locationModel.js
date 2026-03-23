@@ -8,6 +8,8 @@ class Location {
         const conditions = [];
         let index = 1;
 
+        conditions.push(`is_active = TRUE`);
+
         if (search) {
             conditions.push(`name ILIKE $${index}`);
             values.push(`%${search}%`);
@@ -52,7 +54,7 @@ class Location {
     static async findById(id_location) {
         const result = await pool.query(
             `SELECT * FROM location 
-         WHERE id_location = $1`,
+         WHERE id_location = $1 AND is_active = TRUE`,
             [id_location]
         );
         return result.rows[0] || null;
@@ -110,7 +112,7 @@ class Location {
         const result = await pool.query(
             `UPDATE location
          SET ${fields.join(', ')}
-         WHERE id_location = $${index}
+         WHERE id_location = $${index} AND is_active = TRUE
          RETURNING *`,
             [...values, id_location]
         );
@@ -120,8 +122,9 @@ class Location {
 
     static async delete(id_location) {
         const result = await pool.query(
-            `DELETE FROM location 
-         WHERE id_location = $1 
+            `UPDATE location
+         SET is_active = FALSE
+         WHERE id_location = $1 AND is_active = TRUE
          RETURNING *`,
             [id_location]
         );

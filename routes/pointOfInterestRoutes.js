@@ -2,6 +2,7 @@ import PointOfInterestController from '../controllers/pointOfInterestController.
 import express from 'express';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { requireRole } from '../middleware/rbacMiddleware.js';
+import upload from '../middleware/multer.js';
 
 const router = express.Router();
 
@@ -15,6 +16,7 @@ router.post(
     '/points-of-interest/register',
     verifyToken,
     requireRole([1]),
+    upload.single('image'),
     PointOfInterestController.createController
 );
 router.delete(
@@ -27,6 +29,7 @@ router.patch(
     '/points-of-interest/update/:id_point',
     verifyToken,
     requireRole([1]),
+    upload.single('image'),
     PointOfInterestController.updateController
 );
 

@@ -1,4 +1,22 @@
 import TouristServices from '../models/touristServicesModel.js';
+import cloudinary from '../config/cloudinary.js';
+
+function uploadImageToCloudinary(buffer) {
+    return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+            {
+                folder: 'smartur/tourist-services',
+                resource_type: 'image',
+            },
+            (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+            }
+        );
+
+        stream.end(buffer);
+    });
+}
 
 class TouristServicesController {
     static async getAll(req, res) {
@@ -10,6 +28,7 @@ class TouristServicesController {
             const company = req.query.company ? parseInt(req.query.company) : null;
             const type = req.query.type || null;
             const active = req.query.active !== undefined ? req.query.active === 'true' : null;
+            const id_location = req.query.id_location ? parseInt(req.query.id_location) : null;
 
             const result = await TouristServices.findAll(
                 page,
@@ -17,7 +36,8 @@ class TouristServicesController {
                 search,
                 company,
                 type,
-                active
+                active,
+                id_location
             );
 
             res.json({
@@ -27,6 +47,7 @@ class TouristServicesController {
                 currentPage: result.currentPage,
                 services: result.services.map((service) => ({
                     id: service.id_service,
+                    id_service: service.id_service,
                     name: service.name,
                     description: service.description,
                     id_company: service.id_company,
@@ -35,6 +56,7 @@ class TouristServicesController {
                     active: service.active,
                     id_evaluation: service.id_evaluation,
                     total_score: service.total_score,
+                    image_url: service.image_url || null,
                     created_at: service.created_at,
                 })),
             });
@@ -59,6 +81,7 @@ class TouristServicesController {
                 message: 'Servicio obtenido exitosamente',
                 service: {
                     id: service.id_service,
+                    id_service: service.id_service,
                     name: service.name,
                     description: service.description,
                     id_company: service.id_company,
@@ -67,6 +90,7 @@ class TouristServicesController {
                     active: service.active,
                     id_evaluation: service.id_evaluation,
                     total_score: service.total_score,
+                    image_url: service.image_url || null,
                     created_at: service.created_at,
                 },
             });
@@ -89,18 +113,27 @@ class TouristServicesController {
                 });
             }
 
-            const service = await TouristServices.create(req.body);
+            const payload = { ...req.body };
+
+            if (req.file?.buffer) {
+                const uploaded = await uploadImageToCloudinary(req.file.buffer);
+                payload.image_url = uploaded.secure_url;
+            }
+
+            const service = await TouristServices.create(payload);
 
             res.status(201).json({
                 message: 'Servicio creado exitosamente',
                 service: {
                     id: service.id_service,
+                    id_service: service.id_service,
                     name: service.name,
                     description: service.description,
                     id_company: service.id_company,
                     id_location: service.id_location,
                     service_type: service.service_type,
                     active: service.active,
+                    image_url: service.image_url || null,
                     created_at: service.created_at,
                 },
             });
@@ -115,7 +148,14 @@ class TouristServicesController {
 
     static async update(req, res) {
         try {
-            const service = await TouristServices.update(req.params.id, req.body);
+            const payload = { ...req.body };
+
+            if (req.file?.buffer) {
+                const uploaded = await uploadImageToCloudinary(req.file.buffer);
+                payload.image_url = uploaded.secure_url;
+            }
+
+            const service = await TouristServices.update(req.params.id, payload);
 
             if (!service) {
                 return res.status(404).json({ message: 'Servicio no encontrado' });
@@ -125,12 +165,14 @@ class TouristServicesController {
                 message: 'Servicio actualizado exitosamente',
                 service: {
                     id: service.id_service,
+                    id_service: service.id_service,
                     name: service.name,
                     description: service.description,
                     id_company: service.id_company,
                     id_location: service.id_location,
                     service_type: service.service_type,
                     active: service.active,
+                    image_url: service.image_url || null,
                     created_at: service.created_at,
                 },
             });

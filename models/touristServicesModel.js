@@ -7,7 +7,8 @@ class TouristServices {
         search = '',
         company = null,
         type = null,
-        active = null
+        active = null,
+        id_location = null
     ) {
         const offset = (page - 1) * limit;
 
@@ -39,6 +40,12 @@ class TouristServices {
             index++;
         }
 
+        if (id_location !== null) {
+            conditions.push(`ts.id_location = $${index}`);
+            values.push(id_location);
+            index++;
+        }
+
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
         // 1️⃣ Contar total con filtros
@@ -50,11 +57,12 @@ class TouristServices {
         const totalRecords = parseInt(countQuery.rows[0].count);
         const totalPages = Math.ceil(totalRecords / limit);
 
-        // 2️⃣ Obtener datos paginados con ID de evaluación si existe
+        // 2️⃣ Obtener datos paginados con evaluación si existe
         const dataQuery = await pool.query(
             `
         SELECT ts.*, 
-            (SELECT id_evaluation FROM service_evaluation WHERE id_service = ts.id_service ORDER BY created_at DESC LIMIT 1) as id_evaluation
+            (SELECT id_evaluation FROM service_evaluation WHERE id_service = ts.id_service ORDER BY created_at DESC LIMIT 1) as id_evaluation,
+            (SELECT total_score FROM service_evaluation WHERE id_service = ts.id_service ORDER BY created_at DESC LIMIT 1) as total_score
         FROM tourist_service ts
         ${whereClause}
         ORDER BY ts.id_service
@@ -85,20 +93,20 @@ class TouristServices {
     }
 
     static async create(data) {
-        const { name, description, id_company, id_location, service_type, active } = data;
+        const { name, description, id_company, id_location, service_type, active, image_url } = data;
 
         const result = await pool.query(
-            `INSERT INTO tourist_service (name, description, id_company, id_location, service_type, active) 
-             VALUES ($1, $2, $3, $4, $5, $6) 
+            `INSERT INTO tourist_service (name, description, id_company, id_location, service_type, active, image_url) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7) 
              RETURNING *`,
-            [name, description, id_company, id_location, service_type, active ?? true]
+            [name, description, id_company, id_location, service_type, active ?? true, image_url || null]
         );
 
         return result.rows[0];
     }
 
     static async update(id_service, data) {
-        const { name, description, id_company, id_location, service_type, active } = data;
+        const { name, description, id_company, id_location, service_type, active, image_url } = data;
 
         const fields = [];
         const values = [];
@@ -132,6 +140,11 @@ class TouristServices {
         if (active !== undefined) {
             fields.push(`active = $${index++}`);
             values.push(active);
+        }
+
+        if (image_url !== undefined) {
+            fields.push(`image_url = $${index++}`);
+            values.push(image_url);
         }
 
         if (fields.length === 0) {
