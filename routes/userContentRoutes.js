@@ -28,5 +28,6 @@ router.post(
     upload.single('photo'),
     UserContentController.postCommunityPost,
 );
+router.delete('/community/posts/:postId', verifyToken, UserContentController.deleteCommunityPost);
 
 export default router;

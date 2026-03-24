@@ -98,7 +98,7 @@ export async function listCommunityPosts(page = 1, limit = 20) {
          FROM community_post p
          JOIN "user" u ON u.user_id = p.user_id
          LEFT JOIN traveler_profile tp ON tp.user_id = u.user_id AND tp.is_active = TRUE
-         WHERE u.is_active = true
+         WHERE u.is_active = true AND p.is_active = true
          ORDER BY p.created_at DESC
          LIMIT $1 OFFSET $2`,
         [limit, offset],
@@ -121,4 +121,12 @@ export async function createCommunityPost(userId, caption, imageUrl, placeKind, 
         [userId, caption || '', imageUrl || null, placeKind, placeId],
     );
     return r.rows[0];
+}
+
+export async function deleteCommunityPost(userId, postId) {
+    const r = await pool.query(
+        `UPDATE community_post SET is_active = FALSE WHERE id_post = $1 AND user_id = $2 RETURNING *`,
+        [postId, userId]
+    );
+    return r.rowCount > 0;
 }

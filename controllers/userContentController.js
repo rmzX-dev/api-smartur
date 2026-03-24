@@ -219,6 +219,28 @@ export class UserContentController {
             res.status(500).json({ message: 'Error al crear publicación', error: e.message });
         }
     }
+
+    static async deleteCommunityPost(req, res) {
+        try {
+            const userId = req.user.id;
+            const postId = parseInt(req.params.postId, 10);
+            
+            if (Number.isNaN(postId)) {
+                return res.status(400).json({ message: 'ID de publicación inválido' });
+            }
+
+            const deleted = await UserContent.deleteCommunityPost(userId, postId);
+            
+            if (!deleted) {
+                return res.status(404).json({ message: 'Publicación no encontrada o no tienes permisos para eliminarla' });
+            }
+
+            res.json({ message: 'Publicación eliminada correctamente' });
+        } catch (e) {
+            console.error(e);
+            res.status(500).json({ message: 'Error al eliminar la publicación', error: e.message });
+        }
+    }
 }
 
 export default UserContentController;
