@@ -146,6 +146,16 @@ export class UserService {
         [user.user_id, verificationCode],
       );
 
+      // Reactivación automática si el usuario estaba inactivo (is_active = false)
+      if (user.is_active === false) {
+        console.log(`Reactivando usuario vía Login estándar: ${user.email}`);
+        await pool.query(
+          `UPDATE "user" SET is_active = TRUE WHERE user_id = $1`,
+          [user.user_id]
+        );
+        user.is_active = true;
+      }
+
       const jwtToken = jwt.sign(
         {
           id: user.user_id,

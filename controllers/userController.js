@@ -199,15 +199,26 @@ class UserController {
         req.body.is_active === false &&
         targetId === req.user.id
       ) {
-        // Autodesactivación de la propia cuenta (app móvil)
-        updates.is_active = false;
+        // Autodesactivación con reset (Fresh Start)
+        const user = await User.deactivateAndReset(targetId);
+        if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+        return res.json({
+          message: "Cuenta desactivada y datos reseteados exitosamente",
+          user: toPublicUser(user),
+        });
       }
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No hay campos válidos para actualizar" });
       }
 
-      const user = await User.patch(String(targetId), updates);
+      // Si un admin está desactivando a un usuario, también debería hacer reset
+      let user;
+      if (isAdmin && updates.is_active === false) {
+        user = await User.deactivateAndReset(targetId);
+      } else {
+        user = await User.patch(String(targetId), updates);
+      }
 
       if (!user) {
         return res.status(404).json({ message: "Usuario no encontrado" });
@@ -338,14 +349,27 @@ class UserController {
           avatar_icon_key: null,
         });
         console.log(`Nuevo usuario turista registrado vía Google: ${email}`);
-      } else if (
-        picture &&
-        !user.photo_url &&
-        (user.avatar_icon_key == null || user.avatar_icon_key === '')
-      ) {
+      } else {
+        // Reactivación automática si estaba inactivo
+        const updates = {};
+        if (user.is_active === false) {
+          updates.is_active = true;
+          console.log(`Reactivando usuario vía Google Login: ${email}`);
+        }
+
         // No sobrescribir foto/avatar ya elegidos por el usuario (p. ej. subida vía API).
-        await User.patch(String(user.user_id), { photo_url: picture });
-        user = await User.findById(user.user_id);
+        if (
+          picture &&
+          !user.photo_url &&
+          (user.avatar_icon_key == null || user.avatar_icon_key === '')
+        ) {
+          updates.photo_url = picture;
+        }
+
+        if (Object.keys(updates).length > 0) {
+          await User.patch(String(user.user_id), updates);
+          user = await User.findById(user.user_id);
+        }
       }
 
       const token = jwt.sign(

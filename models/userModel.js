@@ -89,15 +89,46 @@ class User {
         return result.rows[0];
     }
 
+    static async deactivateAndReset(user_id) {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            // 1. Desactivar usuario y resetear avatar/fotos
+            const userResult = await client.query(
+                `UPDATE "user" 
+                 SET is_active = FALSE, 
+                     photo_url = NULL, 
+                     avatar_icon_key = NULL 
+                 WHERE user_id = $1 
+                 RETURNING *`,
+                [user_id]
+            );
+
+            if (userResult.rowCount === 0) {
+                await client.query('ROLLBACK');
+                return null;
+            }
+
+            // 2. Borrar contenido generado para "empezar de cero" si vuelve
+            await client.query('DELETE FROM community_post WHERE user_id = $1', [user_id]);
+            await client.query('DELETE FROM user_favorite WHERE user_id = $1', [user_id]);
+            await client.query('DELETE FROM user_visit WHERE user_id = $1', [user_id]);
+            await client.query('DELETE FROM traveler_profile WHERE user_id = $1', [user_id]);
+
+            await client.query('COMMIT');
+            return userResult.rows[0];
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
     static async delete(user_id) {
-        const result = await pool.query(
-            `UPDATE "user" 
-         SET is_active = FALSE
-         WHERE user_id = $1 AND is_active = TRUE
-         RETURNING *`,
-            [user_id]
-        );
-        return result.rows[0] || null;
+        // Ahora borrar una cuenta (admin o usuario) implica un reset completo
+        return await this.deactivateAndReset(user_id);
     }
 
     static async patch(user_id, data, executor = pool) {
