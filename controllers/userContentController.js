@@ -130,6 +130,8 @@ export class UserContentController {
                         name: row.author_name,
                         photo_url: row.author_photo_url,
                         avatar_icon_key: row.author_avatar_icon_key,
+                        created_at: row.author_created_at,
+                        interests: row.author_interests || [],
                     },
                 })),
             });

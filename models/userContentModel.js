@@ -93,9 +93,11 @@ export async function listCommunityPosts(page = 1, limit = 20) {
     const total = countR.rows[0].c;
     const dataR = await pool.query(
         `SELECT p.id_post, p.user_id, p.caption, p.image_url, p.place_kind, p.place_id, p.created_at,
-                u.name AS author_name, u.photo_url AS author_photo_url, u.avatar_icon_key AS author_avatar_icon_key
+                u.name AS author_name, u.photo_url AS author_photo_url, u.avatar_icon_key AS author_avatar_icon_key,
+                u.created_at AS author_created_at, tp.interests AS author_interests
          FROM community_post p
          JOIN "user" u ON u.user_id = p.user_id
+         LEFT JOIN traveler_profile tp ON tp.user_id = u.user_id AND tp.is_active = TRUE
          WHERE u.is_active = true
          ORDER BY p.created_at DESC
          LIMIT $1 OFFSET $2`,
