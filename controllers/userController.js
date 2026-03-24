@@ -98,13 +98,32 @@ class UserController {
     try {
       const { name, email, password, role_id } = req.body;
 
-      validateRequiredFields({ name, email, password, role_id });
+      const roleIdParsed = role_id !== undefined ? Number(role_id) : undefined;
+      validateRequiredFields({ name, email, password, role_id: roleIdParsed });
       validateEmail(email);
       validatePassword(password);
-      validateRole(role_id);
+      validateRole(roleIdParsed);
       await emailExists(email);
 
-      const user = await User.create(req.body);
+      const user = await User.create({ ...req.body, role_id: roleIdParsed });
+
+      if (req.file) {
+        const folder = `smartur/avatars/${user.user_id}`;
+        const uploadResult = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder, resource_type: "image", overwrite: true },
+            (err, result) => {
+              if (err) reject(err);
+              else resolve(result);
+            },
+          );
+          stream.end(req.file.buffer);
+        });
+        const secureUrl = uploadResult.secure_url;
+        await User.patch(String(user.user_id), { photo_url: secureUrl, avatar_icon_key: null });
+        user.photo_url = secureUrl;
+        user.avatar_icon_key = null;
+      }
 
       res.status(201).json({
         message: "Usuario creado exitosamente",
@@ -137,6 +156,24 @@ class UserController {
       await emailExists(email);
 
       const user = await User.create({ name, email, password, role_id });
+
+      if (req.file) {
+        const folder = `smartur/avatars/${user.user_id}`;
+        const uploadResult = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder, resource_type: "image", overwrite: true },
+            (err, result) => {
+              if (err) reject(err);
+              else resolve(result);
+            },
+          );
+          stream.end(req.file.buffer);
+        });
+        const secureUrl = uploadResult.secure_url;
+        await User.patch(String(user.user_id), { photo_url: secureUrl, avatar_icon_key: null });
+        user.photo_url = secureUrl;
+        user.avatar_icon_key = null;
+      }
 
       res.status(201).json({
         message: "Registro exitoso",
@@ -189,11 +226,12 @@ class UserController {
 
       if (isAdmin) {
         if (req.body.role_id !== undefined) {
-          validateRole(req.body.role_id);
-          updates.role_id = req.body.role_id;
+          const roleId = Number(req.body.role_id);
+          validateRole(roleId);
+          updates.role_id = roleId;
         }
         if (req.body.is_active !== undefined) {
-          updates.is_active = Boolean(req.body.is_active);
+          updates.is_active = String(req.body.is_active) === 'true';
         }
       } else if (
         req.body.is_active === false &&
@@ -206,6 +244,22 @@ class UserController {
           message: "Cuenta desactivada y datos reseteados exitosamente",
           user: toPublicUser(user),
         });
+      }
+
+      if (req.file) {
+        const folder = `smartur/avatars/${targetId}`;
+        const uploadResult = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder, resource_type: "image", overwrite: true },
+            (err, result) => {
+              if (err) reject(err);
+              else resolve(result);
+            },
+          );
+          stream.end(req.file.buffer);
+        });
+        updates.photo_url = uploadResult.secure_url;
+        updates.avatar_icon_key = null;
       }
 
       if (Object.keys(updates).length === 0) {

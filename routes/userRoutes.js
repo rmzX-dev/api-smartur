@@ -22,10 +22,10 @@ router.get(
 );
 
 // Rutas públicas
-router.post("/users/register", UserController.register);
+router.post("/users/register", upload.single("image"), UserController.register);
 
 // RBAC: Solo admin puede crear usuarios directamente
-router.post("/users/", verifyToken, requireRole([1]), UserController.create);
+router.post("/users/", verifyToken, requireRole([1]), upload.single("image"), UserController.create);
 
 // RBAC: Solo admin puede eliminar usuarios
 router.delete(
@@ -36,7 +36,7 @@ router.delete(
 );
 
 // Ownership: solo el propio usuario o admin puede actualizar su perfil
-router.patch("/users/:id", verifyToken, verifyOwnership, UserController.patch);
+router.patch("/users/:id", verifyToken, verifyOwnership, upload.single("image"), UserController.patch);
 
 // Subida de avatar (multipart, campo "avatar"); requiere Cloudinary configurado
 router.post(

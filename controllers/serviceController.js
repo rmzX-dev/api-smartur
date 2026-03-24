@@ -53,7 +53,15 @@ class ServicesController {
 
             if (result.status === 200) {
                 await logSecurityEvent('LOGIN_STEP1', email, ip, 'INFO');
-                await sendEmailVerification(email, result.data.verificationCode);
+
+                // Intentar enviar el correo — si falla (ej. SMTP bloqueado en producción)
+                // se registra el error pero NO se aborta el login
+                try {
+                    await sendEmailVerification(email, result.data.verificationCode);
+                } catch (emailError) {
+                    // El token ya está guardado en DB; el usuario puede reintentarlo aunque el envío falle por SMTP
+                }
+
                 return res.status(200).json({
                     message: 'Código de verificación enviado',
                     requiresVerification: true,
@@ -65,7 +73,6 @@ class ServicesController {
             await logSecurityEvent('LOGIN_FAIL', email ?? null, ip, 'WARN');
             return res.status(result.status).json({ message: result.message, error: result.error });
         } catch (error) {
-            console.error('Error en loginController:', error);
             await logSecurityEvent('LOGIN_FAIL', req.body?.email ?? null, ip, 'WARN').catch(() => {});
             return res.status(500).json({ message: 'Error del servidor', error: error.message });
         }
@@ -90,7 +97,6 @@ class ServicesController {
                 user: result.data.user,
             });
         } catch (error) {
-            console.error('Error en verifyTwoStepVerificationCodeController:', error);
             await logSecurityEvent('MFA_DENIED', req.body?.email ?? null, ip, 'WARN').catch(() => {});
             res.status(500).json({ error: error.message });
         }

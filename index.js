@@ -60,8 +60,13 @@ const corsOptions = {
 
         // Permitir requests sin Origin (como Flutter)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin) || isLocalNetworkOrigin) return callback(null, true);
-        return callback(new Error(`Origin ${origin} no permitido por CORS`));
+
+        if (allowedOrigins.includes(origin) || isLocalNetworkOrigin) {
+            return callback(null, true);
+        }
+
+        console.warn(`[CORS] Intento de acceso denegado para el origen: ${origin}. Verifica FRONTEND_URL en .env o el dashboard de despliegue.`);
+        return callback(null, false);
     },
     credentials: true,
     optionsSuccessStatus: 200,
@@ -161,8 +166,8 @@ const PORT = process.env.PORT || 3000;
 
 
 
-app.listen(PORT, () => {
-    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    // Servidor activo
 });
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok' });
