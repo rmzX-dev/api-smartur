@@ -329,6 +329,7 @@ CREATE TABLE community_post (
   image_url VARCHAR(512) NULL,
   place_kind VARCHAR(3) NOT NULL CHECK (place_kind IN ('svc', 'poi')),
   place_id INT NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_community_post_created ON community_post(created_at DESC);
