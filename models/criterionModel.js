@@ -34,7 +34,6 @@ class Criterion {
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        // Contar total con filtros
         const countQuery = await pool.query(
             `SELECT COUNT(*) FROM evaluation_criterion ${whereClause}`,
             values
@@ -43,7 +42,6 @@ class Criterion {
         const totalRecords = parseInt(countQuery.rows[0].count);
         const totalPages = Math.ceil(totalRecords / limit);
 
-        // Obtener datos paginados
         const dataQuery = await pool.query(
             `SELECT * FROM evaluation_criterion
              ${whereClause}
@@ -70,26 +68,26 @@ class Criterion {
     }
 
     static async createCriterion(data) {
-        const { id_template, name, description, weight, order_index, active } = data;
+        const { id_template, name, description, weight, order_index, active, field_type, is_required } = data;
         const result = await pool.query(
-            `INSERT INTO evaluation_criterion (id_template, name, description, weight, order_index, active) 
-             VALUES ($1, $2, $3, $4, $5, $6) 
-             RETURNING id_criterion, id_template, name, description, weight, order_index, active`,
-            [id_template, name, description, weight, order_index, active]
+            `INSERT INTO evaluation_criterion (id_template, name, description, weight, order_index, active, field_type, is_required) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+             RETURNING id_criterion, id_template, name, description, weight, order_index, active, field_type, is_required`,
+            [id_template, name, description, weight, order_index, active, field_type || 'scale', is_required !== false]
         );
         return result.rows[0];
     }
 
     static async deleteCriterion(id_criterion) {
         const result = await pool.query(
-            'UPDATE evaluation_criterion SET active = FALSE WHERE id_criterion = $1 AND active = TRUE RETURNING *',
+            `UPDATE evaluation_criterion SET active = FALSE WHERE id_criterion = $1 AND active = TRUE RETURNING *`,
             [id_criterion]
         );
         return result.rows[0] || null;
     }
 
     static async updateCriterion(id_criterion, data) {
-        const { name, description, weight, order_index, active } = data;
+        const { name, description, weight, order_index, active, field_type, is_required } = data;
 
         const fields = [];
         const values = [];
@@ -115,6 +113,14 @@ class Criterion {
             fields.push(`active = $${index++}`);
             values.push(active);
         }
+        if (field_type !== undefined) {
+            fields.push(`field_type = $${index++}`);
+            values.push(field_type);
+        }
+        if (is_required !== undefined) {
+            fields.push(`is_required = $${index++}`);
+            values.push(is_required);
+        }
 
         if (fields.length === 0) return null;
 
@@ -122,7 +128,7 @@ class Criterion {
             `UPDATE evaluation_criterion 
              SET ${fields.join(', ')} 
              WHERE id_criterion = $${index} 
-             RETURNING id_criterion, id_template, name, description, weight, order_index, active`,
+             RETURNING id_criterion, id_template, name, description, weight, order_index, active, field_type, is_required`,
             [...values, id_criterion]
         );
         return result.rows[0] || null;

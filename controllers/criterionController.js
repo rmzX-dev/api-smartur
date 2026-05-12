@@ -30,6 +30,8 @@ class CriterionController {
                     weight: criterion.weight,
                     order: criterion.order_index,
                     active: criterion.active,
+                    field_type: criterion.field_type || 'scale',
+                    is_required: criterion.is_required !== false,
                 })),
             });
         } catch (error) {

@@ -25,6 +25,8 @@ import TourismInputRouter from './routes/tourismInputsRoutes.js';
 import UserRouter from './routes/userRoutes.js';
 import UserContentRouter from './routes/userContentRoutes.js';
 import SecurityRouter from './routes/securityRoutes.js';
+import DashboardRouter from './routes/dashboardRoutes.js';
+import SubcriterionRouter from './routes/subcriterionRoutes.js';
 dotenv.config();
 
 const app = express();
@@ -48,27 +50,33 @@ app.disable('x-powered-by');
 const allowedOrigins = process.env.FRONTEND_URL
     ? process.env.FRONTEND_URL.split(',')
           .map((o) => o.trim())
+          .map((o) => o.replace(/\/$/, ''))
           .filter(Boolean)
     : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
+
+const normalizeOrigin = (value) => String(value || '').trim().replace(/\/$/, '');
 const corsOptions = {
     origin: (origin, callback) => {
+        const requestOrigin = normalizeOrigin(origin);
         const isLocalNetworkOrigin =
-            /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin || '') ||
-            /^https?:\/\/192\.168\.\d+\.\d+(:\d+)?$/.test(origin || '') ||
-            /^https?:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/.test(origin || '') ||
-            /^https?:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(:\d+)?$/.test(origin || '');
+            /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(requestOrigin) ||
+            /^https?:\/\/192\.168\.\d+\.\d+(:\d+)?$/.test(requestOrigin) ||
+            /^https?:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/.test(requestOrigin) ||
+            /^https?:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(:\d+)?$/.test(requestOrigin);
 
         // Permitir requests sin Origin (como Flutter)
         if (!origin) return callback(null, true);
 
-        if (allowedOrigins.includes(origin) || isLocalNetworkOrigin) {
+        if (allowedOrigins.includes(requestOrigin) || isLocalNetworkOrigin) {
             return callback(null, true);
         }
 
-        console.warn(`[CORS] Intento de acceso denegado para el origen: ${origin}. Verifica FRONTEND_URL en .env o el dashboard de despliegue.`);
+        console.warn(`[CORS] Intento de acceso denegado para el origen: ${requestOrigin}. Verifica FRONTEND_URL en .env o el dashboard de despliegue.`);
         return callback(null, false);
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     optionsSuccessStatus: 200,
 };
 app.use(cors(corsOptions));
@@ -160,6 +168,8 @@ app.use('/api/v2', TourismInputRouter);
 app.use('/api/v2', UserRouter);
 app.use('/api/v2', UserContentRouter);
 app.use('/api/v2', SecurityRouter);
+app.use('/api/v2', DashboardRouter);
+app.use('/api/v2', SubcriterionRouter);
 
 
 const PORT = process.env.PORT || 3000;

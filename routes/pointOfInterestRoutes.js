@@ -3,6 +3,10 @@ import express from 'express';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { requireRole } from '../middleware/rbacMiddleware.js';
 import upload from '../middleware/multer.js';
+import {
+    validateCreatePOI,
+    validateUpdatePOI,
+} from '../validators/pointOfInterestValidators.js';
 
 const router = express.Router();
 
@@ -17,6 +21,7 @@ router.post(
     verifyToken,
     requireRole([1]),
     upload.single('image'),
+    validateCreatePOI,
     PointOfInterestController.createController
 );
 router.delete(
@@ -30,6 +35,7 @@ router.patch(
     verifyToken,
     requireRole([1]),
     upload.single('image'),
+    validateUpdatePOI,
     PointOfInterestController.updateController
 );
 

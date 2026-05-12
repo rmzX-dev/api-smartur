@@ -146,6 +146,8 @@ class Template {
                 ]);
                 return {
                     ...criterion,
+                    field_type: criterion.field_type || 'scale',
+                    is_required: criterion.is_required !== false,
                     levels: subcriteriaResult.rows,
                 };
             })
