@@ -1,6 +1,7 @@
 import * as UserContent from '../models/userContentModel.js';
 import User from '../models/userModel.js';
 import cloudinary from '../config/cloudinary.js';
+import { ensureImagePassesModeration } from '../services/imageModerationService.js';
 
 function parseKind(raw) {
     if (raw === 'svc' || raw === 'poi') return raw;
@@ -180,6 +181,10 @@ export class UserContentController {
                 if (req.file.size > 5 * 1024 * 1024) {
                     return res.status(400).json({ message: 'Imagen demasiado grande (máx. 5 MB)' });
                 }
+
+                const allowedImage = await ensureImagePassesModeration(req, res);
+                if (!allowedImage) return;
+
                 const folder = `smartur/community/${userId}`;
                 const uploadResult = await new Promise((resolve, reject) => {
                     const stream = cloudinary.uploader.upload_stream(

@@ -1,6 +1,7 @@
 import User from "../models/userModel.js";
 import jwt from "jsonwebtoken";
 import cloudinary from "../config/cloudinary.js";
+import { ensureImagePassesModeration } from "../services/imageModerationService.js";
 import { toPublicUser } from "../utils/userPublic.js";
 import {
   validateEmail,
@@ -108,6 +109,8 @@ class UserController {
       const user = await User.create({ ...req.body, role_id: roleIdParsed });
 
       if (req.file) {
+        const ok = await ensureImagePassesModeration(req, res);
+        if (!ok) return;
         const folder = `smartur/avatars/${user.user_id}`;
         const uploadResult = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
@@ -158,6 +161,8 @@ class UserController {
       const user = await User.create({ name, email, password, role_id });
 
       if (req.file) {
+        const ok = await ensureImagePassesModeration(req, res);
+        if (!ok) return;
         const folder = `smartur/avatars/${user.user_id}`;
         const uploadResult = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
@@ -247,6 +252,8 @@ class UserController {
       }
 
       if (req.file) {
+        const ok = await ensureImagePassesModeration(req, res);
+        if (!ok) return;
         const folder = `smartur/avatars/${targetId}`;
         const uploadResult = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
@@ -312,6 +319,9 @@ class UserController {
       if (req.file.size > 5 * 1024 * 1024) {
         return res.status(400).json({ message: "Imagen demasiado grande (máx. 5 MB)" });
       }
+
+      const ok = await ensureImagePassesModeration(req, res);
+      if (!ok) return;
 
       const folder = `smartur/avatars/${targetId}`;
       const uploadResult = await new Promise((resolve, reject) => {

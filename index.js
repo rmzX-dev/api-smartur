@@ -27,6 +27,7 @@ import UserContentRouter from './routes/userContentRoutes.js';
 import SecurityRouter from './routes/securityRoutes.js';
 import DashboardRouter from './routes/dashboardRoutes.js';
 import SubcriterionRouter from './routes/subcriterionRoutes.js';
+import ContactRouter from './routes/contactRoutes.js';
 dotenv.config();
 
 const app = express();
@@ -170,6 +171,7 @@ app.use('/api/v2', UserContentRouter);
 app.use('/api/v2', SecurityRouter);
 app.use('/api/v2', DashboardRouter);
 app.use('/api/v2', SubcriterionRouter);
+app.use('/api/v2', ContactRouter);
 
 
 const PORT = process.env.PORT || 3000;
