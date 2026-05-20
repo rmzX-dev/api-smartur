@@ -1,0 +1,50 @@
+{
+  "name": "api-smartur",
+  "version": "1.0.0",
+  "description": "api-smartur",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "node --watch index.js",
+    "start": "node index.js",
+    "seed:explore": "node scripts/seed-explore.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "audit": "npm audit",
+    "audit:fix": "npm audit fix"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rmzX-dev/api-smartur.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/rmzX-dev/api-smartur/issues"
+  },
+  "homepage": "https://github.com/rmzX-dev/api-smartur#readme",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cloudinary": "^2.9.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "google-auth-library": "^10.6.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.1.1",
+    "nodemailer": "^7.0.9",
+    "pg": "^8.16.3",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "minimatch": ">=3.1.4"
+    }
+  }
+}

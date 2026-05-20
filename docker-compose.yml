@@ -1,0 +1,95 @@
+services:
+    postgres:
+        image: postgres:16-alpine
+        container_name: smartur-postgres
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: ${DB_USER:-postgres}
+            POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+            POSTGRES_DB: ${DB_NAME:-smartur}
+        ports:
+            - '${DB_HOST_PORT:-5432}:5432'
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+            - ./bd.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-smartur}']
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
+        networks:
+            - smartur-net
+
+    redis:
+        image: redis:7-alpine
+        container_name: smartur-redis
+        restart: unless-stopped
+        command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redispass}
+        ports:
+            - '6380:6379'
+        volumes:
+            - redis_data:/data
+        healthcheck:
+            test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:-redispass}', 'ping']
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        networks:
+            - smartur-net
+
+    api:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: smartur-api
+        restart: unless-stopped
+        env_file:
+            - .env
+        environment:
+            DB_HOST: postgres
+            REDIS_URL: redis://:${REDIS_PASSWORD:-redispass}@redis:6379
+        ports:
+            # Puerto interno del contenedor: 3000 (API)
+            # Puerto externo configurable para evitar puertos bloqueados en host.
+            - '${API_BIND_IP:-0.0.0.0}:${API_HOST_PORT:-4000}:3000'
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+        networks:
+            - smartur-net
+
+    grafana:
+        image: grafana/grafana:latest
+        container_name: smartur-grafana
+        restart: unless-stopped
+        ports:
+            # Puerto interno de Grafana: 3000
+            # Puerto externo configurable para evitar conflictos/bloqueos.
+            - '127.0.0.1:${GRAFANA_HOST_PORT:-4001}:3000'
+        environment:
+            - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+            - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+            - GF_USERS_ALLOW_SIGN_UP=false
+            - GF_SERVER_ROOT_URL=http://localhost:${GRAFANA_HOST_PORT:-4001}
+        volumes:
+            - grafana_data:/var/lib/grafana
+        networks:
+            - smartur-net
+
+volumes:
+    postgres_data:
+    redis_data:
+    grafana_data:
+
+networks:
+    smartur-net:
+        driver: bridge
