@@ -1,49 +1,18 @@
-# Environment variables
+# Environment
 .env
-.env.*
 !.env.example
 
-# Node modules
-node_modules/
-**/node_modules/
-
-# Python
-__pycache__/
-**/__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.venv/
-**/.venv/
-venv/
-**/venv/
-*.egg-info/
-
-# Build outputs
-dist/
-build/
-.next/
-**/.next/
-out/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Claude internal
-.claude/
-.agents/
-skills-lock.json
+# Dependencies
+/node_modules
 
 # Logs
-*.log
-logs/
+npm-debug.log*
 
-# Docker
-*.override.yml
+# Documentation (Only keep README.md)
+*.md
+!README.md
+
+# IDEs and System
+.vscode/
+.idea/
+.DS_Store

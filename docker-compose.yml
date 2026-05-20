@@ -1,163 +1,95 @@
 services:
-  # ============================================================
-  # Database
-  # ============================================================
-  postgres:
-    image: postgres:16-alpine
-    container_name: smartur-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-12345678}
-      POSTGRES_DB: ${DB_NAME:-smartur}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./API/bd.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-smartur}']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - smartur-net
+    postgres:
+        image: postgres:16-alpine
+        container_name: smartur-postgres
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: ${DB_USER:-postgres}
+            POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+            POSTGRES_DB: ${DB_NAME:-smartur}
+        ports:
+            - '${DB_HOST_PORT:-5432}:5432'
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+            - ./bd.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-smartur}']
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
+        networks:
+            - smartur-net
 
-  # ============================================================
-  # API Backend
-  # ============================================================
-  api:
-    build:
-      context: ./API
-      dockerfile: Dockerfile
-    container_name: smartur-api
-    restart: unless-stopped
-    environment:
-      PORT: 3000
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-smartur}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-12345678}
-      JWT_SECRET: ${JWT_SECRET:-tu_contraseña_secreta}
-      EMAIL_USER: ${EMAIL_USER:-smarturutcv@gmail.com}
-      EMAIL_PASS: ${EMAIL_PASS:-lihichglnpzlhddg}
-      FRONTEND_URL: http://plataforma:5173,http://landing:4321,http://localhost:5173,http://${VPS_IP:-localhost},http://${VPS_IP:-localhost}:5173,http://${VPS_IP:-localhost}:4321
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-77253773974-b412uvcqhrqmchhtdq5rq6tl81hpados.apps.googleusercontent.com}
-      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-dke5fhmpk}
-      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-759781756841837}
-      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-h3Ke76Ry-XlJeHbhBG3SZHdS6I8}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    networks:
-      - smartur-net
+    redis:
+        image: redis:7-alpine
+        container_name: smartur-redis
+        restart: unless-stopped
+        command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redispass}
+        ports:
+            - '6380:6379'
+        volumes:
+            - redis_data:/data
+        healthcheck:
+            test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:-redispass}', 'ping']
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        networks:
+            - smartur-net
 
-  # ============================================================
-  # ML Model Service
-  # ============================================================
-  modelo:
-    build:
-      context: ./MODELO
-      dockerfile: Dockerfile
-    container_name: smartur-modelo
-    restart: unless-stopped
-    environment:
-      POI_DB_HOST: postgres
-      POI_DB_PORT: 5432
-      POI_DB_NAME: ${DB_NAME:-smartur}
-      POI_DB_USER: ${DB_USER:-postgres}
-      POI_DB_PASSWORD: ${DB_PASSWORD:-12345678}
-      SKIP_MODEL_BOOT: ${SKIP_MODEL_BOOT:-0}
-      AUTO_BOOTSTRAP: ${AUTO_BOOTSTRAP:-1}
-      KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
-      KAGGLE_KEY: ${KAGGLE_KEY:-}
-      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000,http://${VPS_IP:-localhost},http://${VPS_IP:-localhost}:5173,http://${VPS_IP:-localhost}:4000"
-    volumes:
-      - modelo_data:/app/data
-      - modelo_models:/app/models
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ['CMD', 'python', '-c', 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/docs", timeout=5)']
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 1800s
-    networks:
-      - smartur-net
+    api:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: smartur-api
+        restart: unless-stopped
+        env_file:
+            - .env
+        environment:
+            DB_HOST: postgres
+            REDIS_URL: redis://:${REDIS_PASSWORD:-redispass}@redis:6379
+        ports:
+            # Puerto interno del contenedor: 3000 (API)
+            # Puerto externo configurable para evitar puertos bloqueados en host.
+            - '${API_BIND_IP:-0.0.0.0}:${API_HOST_PORT:-4000}:3000'
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+        networks:
+            - smartur-net
 
-  # ============================================================
-  # Platform (Dashboard) Frontend
-  # ============================================================
-  plataforma:
-    build:
-      context: ./PLATAFORMA
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: http://${VPS_IP:-localhost}:4000/api/v2
-        VITE_MODELO_URL: http://${VPS_IP:-localhost}:8000
-        VITE_BUSINESS_URL: http://${VPS_IP:-localhost}:4321/
-    container_name: smartur-plataforma
-    restart: unless-stopped
-    environment:
-      VITE_API_URL: http://${VPS_IP:-localhost}:4000/api/v2
-      VITE_BUSINESS_URL: http://${VPS_IP:-localhost}:4321/
-      VITE_MODELO_URL: http://${VPS_IP:-localhost}:8000
-    depends_on:
-      - api
-    networks:
-      - smartur-net
-
-  # ============================================================
-  # Landing Page Frontend
-  # ============================================================
-  landing:
-    build:
-      context: ./LANDING
-      dockerfile: Dockerfile
-      args:
-        PUBLIC_TOURIST_APP_URL: http://${VPS_IP:-localhost}:5173/
-    container_name: smartur-landing
-    restart: unless-stopped
-    environment:
-      PUBLIC_TOURIST_APP_URL: http://${VPS_IP:-localhost}:5173/
-    depends_on:
-      - plataforma
-    networks:
-      - smartur-net
-
-  # ============================================================
-  # Nginx Reverse Proxy
-  # ============================================================
-  nginx:
-    image: nginx:alpine
-    container_name: smartur-nginx
-    restart: unless-stopped
-    ports:
-      - '80:80'
-      - '4321:4321'
-      - '4000:4000'
-      - '8000:8000'
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - plataforma
-      - landing
-      - api
-    networks:
-      - smartur-net
-
-networks:
-  smartur-net:
-    driver: bridge
+    grafana:
+        image: grafana/grafana:latest
+        container_name: smartur-grafana
+        restart: unless-stopped
+        ports:
+            # Puerto interno de Grafana: 3000
+            # Puerto externo configurable para evitar conflictos/bloqueos.
+            - '127.0.0.1:${GRAFANA_HOST_PORT:-4001}:3000'
+        environment:
+            - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+            - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+            - GF_USERS_ALLOW_SIGN_UP=false
+            - GF_SERVER_ROOT_URL=http://localhost:${GRAFANA_HOST_PORT:-4001}
+        volumes:
+            - grafana_data:/var/lib/grafana
+        networks:
+            - smartur-net
 
 volumes:
-  postgres_data:
-  modelo_data:
-  modelo_models:
+    postgres_data:
+    redis_data:
+    grafana_data:
+
+networks:
+    smartur-net:
+        driver: bridge
