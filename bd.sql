@@ -345,6 +345,14 @@ CREATE TABLE community_post (
 );
 CREATE INDEX idx_community_post_created ON community_post(created_at DESC);
 
+CREATE TABLE contact_subscription (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL,
+  source VARCHAR(64) NOT NULL DEFAULT 'landing_b2b',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_contact_subscription_email ON contact_subscription(email);
+
 -- ============================================
 -- MODELO ML: persistencia de recomendaciones y métricas
 -- (generadas por servicio MODELO :8000; consulta vía GET /recommendations/{user_id})

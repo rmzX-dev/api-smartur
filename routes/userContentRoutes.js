@@ -29,5 +29,6 @@ router.post(
     UserContentController.postCommunityPost,
 );
 router.delete('/community/posts/:postId', verifyToken, UserContentController.deleteCommunityPost);
+router.delete('/community/posts/:postId/admin', verifyToken, UserContentController.adminDeleteCommunityPost);
 
 export default router;

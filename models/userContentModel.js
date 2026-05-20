@@ -130,3 +130,11 @@ export async function deleteCommunityPost(userId, postId) {
     );
     return r.rowCount > 0;
 }
+
+export async function adminDeleteCommunityPost(postId) {
+    const r = await pool.query(
+        `UPDATE community_post SET is_active = FALSE WHERE id_post = $1 RETURNING *`,
+        [postId]
+    );
+    return r.rowCount > 0;
+}
