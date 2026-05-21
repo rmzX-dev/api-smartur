@@ -532,4 +532,44 @@ INSERT INTO evaluation_subcriterion (id_criterion, description, score, order_ind
   (5, 'Deficiente', 2, 0), (5, 'Regular', 4, 1), (5, 'Bueno', 6, 2), (5, 'Muy bueno', 8, 3), (5, 'Excelente', 10, 4),
   (6, 'Deficiente', 2, 0), (6, 'Regular', 4, 1), (6, 'Bueno', 6, 2), (6, 'Muy bueno', 8, 3), (6, 'Excelente', 10, 4);
 
+-- ============================================
+-- ML DATA COLLECTION TABLES
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS user_interaction (
+  id            BIGSERIAL PRIMARY KEY,
+  user_id       INT NOT NULL REFERENCES "user"(user_id) ON DELETE CASCADE,
+  place_kind    VARCHAR(16) NULL,
+  place_id      INT NULL,
+  event_type    VARCHAR(32) NOT NULL,
+  dwell_ms      INT NULL,
+  meta          JSONB NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_user_interaction_user_place ON user_interaction (user_id, place_kind, place_id);
+CREATE INDEX idx_user_interaction_created ON user_interaction (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS user_rating (
+  id         SERIAL PRIMARY KEY,
+  user_id    INT NOT NULL REFERENCES "user"(user_id) ON DELETE CASCADE,
+  place_kind VARCHAR(3) NOT NULL CHECK (place_kind IN ('svc', 'poi')),
+  place_id   INT NOT NULL,
+  rating     SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, place_kind, place_id)
+);
+CREATE INDEX idx_user_rating_place ON user_rating (place_kind, place_id);
+
+CREATE TABLE IF NOT EXISTS ml_recommendation_feedback (
+  id            SERIAL PRIMARY KEY,
+  session_id    INT NOT NULL REFERENCES ml_recommendation_session(id) ON DELETE CASCADE,
+  item_id       VARCHAR(64) NOT NULL,
+  rank_pos      INT NOT NULL,
+  clicked       BOOLEAN NOT NULL DEFAULT FALSE,
+  clicked_at    TIMESTAMPTZ NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_ml_rec_feedback_session ON ml_recommendation_feedback (session_id);
+
 COMMIT;

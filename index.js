@@ -28,6 +28,8 @@ import SecurityRouter from './routes/securityRoutes.js';
 import DashboardRouter from './routes/dashboardRoutes.js';
 import SubcriterionRouter from './routes/subcriterionRoutes.js';
 import ContactRouter from './routes/contactRoutes.js';
+import InteractionRouter from './routes/interactionRoutes.js';
+import MLRouter from './routes/mlRoutes.js';
 dotenv.config();
 
 const app = express();
@@ -172,6 +174,8 @@ app.use('/api/v2', SecurityRouter);
 app.use('/api/v2', DashboardRouter);
 app.use('/api/v2', SubcriterionRouter);
 app.use('/api/v2', ContactRouter);
+app.use('/api/v2', InteractionRouter);
+app.use('/api/v2', MLRouter);
 
 
 const PORT = process.env.PORT || 3000;
