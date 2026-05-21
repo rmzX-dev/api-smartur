@@ -349,6 +349,9 @@ CREATE TABLE contact_subscription (
   id SERIAL PRIMARY KEY,
   email VARCHAR(255) NOT NULL,
   source VARCHAR(64) NOT NULL DEFAULT 'landing_b2b',
+  reason VARCHAR(100) NULL,
+  message TEXT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_contact_subscription_email ON contact_subscription(email);
@@ -571,5 +574,15 @@ CREATE TABLE IF NOT EXISTS ml_recommendation_feedback (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_ml_rec_feedback_session ON ml_recommendation_feedback (session_id);
+
+INSERT INTO location (name, state, municipality, latitude, longitude)
+VALUES
+  ('Ixtaczoquitlán',          'Veracruz', 'Ixtaczoquitlán',        18.816700, -97.066700),
+  ('Cuitláhuac',              'Veracruz', 'Cuitláhuac',            18.813100, -96.722200),
+  ('Amatlán de los Reyes',    'Veracruz', 'Amatlán de los Reyes',  18.833300, -96.916700),
+  ('Yanga',                   'Veracruz', 'Yanga',                 18.833300, -96.800000),
+  ('Atoyac',                  'Veracruz', 'Atoyac',                18.916700, -96.766700),
+  ('Xico',                    'Veracruz', 'Xico',                  19.421800, -97.010200)
+ON CONFLICT DO NOTHING;
 
 COMMIT;
